@@ -1,0 +1,51 @@
+version: '3.9'
+
+services:
+  simulation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: video-simulation
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "5000:5000"
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/sim_env/__pycache__
+    command: python -m sim_env.main
+    stdin_open: true
+    tty: true
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: simulation-web
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_APP=sim_env.web_Interface
+      - FLASK_ENV=development
+    ports:
+      - "5001:5001"
+    volumes:
+      - .:/app
+    command: python -m flask run --host=0.0.0.0 --port=5001
+    depends_on:
+      - simulation
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: simulation-jupyter
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/app
+    command: jupyter notebook --ip=0.0.0.0 --allow-root --no-browser
+    depends_on:
+      - simulation

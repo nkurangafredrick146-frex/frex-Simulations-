@@ -1,0 +1,315 @@
+# Base model configuration for FrexTech AI World Model
+# Version: 1.0.0
+
+model:
+  name: "world_model_v1"
+  version: "1.0.0"
+  description: "Base world model for 3D scene generation and editing"
+  architecture: "transformer_diffusion"
+  
+  # Model dimensions
+  dimensions:
+    latent_dim: 1024
+    hidden_dim: 2048
+    num_layers: 24
+    num_heads: 16
+    num_groups: 32
+    num_channels: 4  # RGBA
+    
+  # Token configuration
+  tokens:
+    num_patches: 256
+    patch_size: 16
+    vocab_size: 16384
+    max_sequence_length: 2048
+    
+  # Attention mechanisms
+  attention:
+    type: "flash"  # flash, memory_efficient, vanilla
+    dropout: 0.1
+    use_rotary_embeddings: true
+    rotary_dim: 32
+    use_flash_attention: true
+    
+  # Feed-forward network
+  ffnn:
+    hidden_multiplier: 4
+    activation: "swiglu"
+    dropout: 0.1
+    use_gated_ffn: true
+    
+  # Normalization
+  normalization:
+    type: "rmsnorm"  # layernorm, rmsnorm
+    eps: 1e-6
+    elementwise_affine: true
+    
+  # Initialization
+  initialization:
+    method: "xavier_uniform"
+    gain: 1.0
+    bias_init: 0.0
+    
+  # Mixed precision
+  mixed_precision:
+    enabled: true
+    dtype: "bfloat16"  # float16, bfloat16
+    grad_scaler: true
+    
+  # Gradient checkpointing
+  gradient_checkpointing:
+    enabled: true
+    checkpoint_every: 1
+    
+  # Model parallelism
+  parallelism:
+    tensor_parallel: 1
+    pipeline_parallel: 1
+    sequence_parallel: false
+    expert_parallel: false
+
+diffusion:
+  # Diffusion process
+  type: "denoising_diffusion"  # score_based, flow_matching
+  objective: "v_prediction"  # epsilon, v, x0
+  variance_schedule: "cosine"
+  
+  # Timesteps
+  timesteps:
+    train: 1000
+    inference: 250
+    discretization: "linear"
+    
+  # Noise schedule
+  noise_schedule:
+    beta_start: 0.0001
+    beta_end: 0.02
+    cosine_s: 0.008
+    
+  # Samplers
+  samplers:
+    train: "ddpm"
+    inference: ["ddim", "dpm_solver", "plms"]
+    guidance_scale: 7.5
+    classifier_free_guidance: true
+    guidance_dropout: 0.1
+
+multimodal:
+  # Text encoder
+  text_encoder:
+    type: "clip"  # bert, t5, clip
+    model_name: "openai/clip-vit-large-patch14"
+    embedding_dim: 768
+    max_length: 77
+    projection_dim: 1024
+    trainable: false
+    
+  # Vision encoder
+  vision_encoder:
+    type: "vit"  # resnet, efficientnet
+    model_name: "vit-large-patch16-224"
+    embedding_dim: 1024
+    patch_size: 16
+    projection_dim: 1024
+    trainable: false
+    
+  # Video encoder
+  video_encoder:
+    type: "timesformer"
+    model_name: "facebook/timesformer-base-pt-16x224"
+    embedding_dim: 768
+    num_frames: 8
+    projection_dim: 1024
+    trainable: false
+    
+  # Fusion mechanism
+  fusion:
+    type: "cross_attention"
+    num_layers: 4
+    num_heads: 8
+    dropout: 0.1
+
+representation:
+  # 3D representation
+  type: "gaussian_splatting"  # nerf, mesh, voxel, gaussian_splatting
+  
+  # Gaussian splatting parameters
+  gaussian_splatting:
+    num_gaussians: 500000
+    sh_degree: 3
+    opacity_activation: "sigmoid"
+    scaling_activation: "exp"
+    rotation_activation: "normalize"
+    
+  # NeRF parameters
+  nerf:
+    num_samples_coarse: 64
+    num_samples_fine: 128
+    positional_encoding:
+      num_frequencies: 10
+      include_input: true
+    density_activation: "relu"
+    
+  # Mesh parameters
+  mesh:
+    resolution: 256
+    marching_cubes_threshold: 0.5
+    texture_resolution: 1024
+
+training:
+  # Dataset
+  dataset:
+    batch_size: 32
+    micro_batch_size: 4
+    gradient_accumulation_steps: 8
+    num_workers: 8
+    prefetch_factor: 2
+    pin_memory: true
+    persistent_workers: true
+    
+  # Optimization
+  optimizer:
+    type: "adamw"
+    learning_rate: 1.0e-4
+    weight_decay: 0.01
+    beta1: 0.9
+    beta2: 0.95
+    eps: 1.0e-8
+    
+  # Learning rate schedule
+  scheduler:
+    type: "cosine"
+    warmup_steps: 2000
+    total_steps: 1000000
+    min_learning_rate: 1.0e-6
+    decay_steps: 50000
+    
+  # Loss functions
+  losses:
+    diffusion: "mse"
+    reconstruction: "l1"
+    perceptual: "lpips"
+    adversarial: false
+    weight_diffusion: 1.0
+    weight_reconstruction: 0.1
+    weight_perceptual: 0.01
+    
+  # Regularization
+  regularization:
+    gradient_clip: 1.0
+    weight_decay: 0.01
+    dropout: 0.1
+    label_smoothing: 0.1
+    
+  # Checkpointing
+  checkpoint:
+    save_every: 1000
+    keep_last: 10
+    save_best: true
+    metric: "val_loss"
+    mode: "min"
+
+inference:
+  # Generation parameters
+  generation:
+    num_samples: 1
+    guidance_scale: 7.5
+    num_inference_steps: 50
+    seed: null
+    deterministic: true
+    
+  # Sampling
+  sampling:
+    method: "ddim"
+    eta: 0.0
+    order: 2
+    skip_type: "time_uniform"
+    
+  # Post-processing
+  post_processing:
+    denoise: true
+    sharpen: 0.5
+    contrast: 1.0
+    upscale: false
+    upscale_factor: 2
+
+hardware:
+  # GPU configuration
+  gpu:
+    num_gpus: 4
+    memory_per_gpu: "40GB"
+    cuda_version: "11.8"
+    
+  # Distributed training
+  distributed:
+    backend: "nccl"
+    init_method: "env://"
+    world_size: 4
+    local_rank: 0
+    
+  # Mixed precision
+  amp:
+    enabled: true
+    opt_level: "O2"
+    keep_batchnorm_fp32: true
+    loss_scale: "dynamic"
+
+monitoring:
+  # Logging
+  logging:
+    frequency: 100
+    log_loss: true
+    log_gradients: false
+    log_weights: false
+    log_histograms: false
+    
+  # Metrics
+  metrics:
+    train: ["loss", "perplexity", "accuracy"]
+    validation: ["loss", "perplexity", "fid", "psnr", "ssim"]
+    test: ["fid", "psnr", "ssim", "lpips"]
+    
+  # Visualization
+  visualization:
+    frequency: 1000
+    num_samples: 4
+    save_figures: true
+    tensorboard: true
+    wandb: true
+
+environment:
+  # Paths
+  paths:
+    data: "./data"
+    models: "./models"
+    logs: "./logs"
+    checkpoints: "./checkpoints"
+    outputs: "./outputs"
+    
+  # Seeds
+  seeds:
+    random_seed: 42
+    numpy_seed: 42
+    torch_seed: 42
+    cuda_seed: 42
+    
+  # Debugging
+  debug:
+    profile: false
+    profile_steps: 100
+    debug_nans: true
+    debug_infs: true
+    deterministic: false
+
+versioning:
+  # Model version
+  version: "1.0.0"
+  git_hash: "${GIT_HASH}"
+  timestamp: "${TIMESTAMP}"
+  config_hash: "${CONFIG_HASH}"
+  
+  # Compatibility
+  compatibility:
+    min_version: "1.0.0"
+    max_version: "2.0.0"
+    breaking_changes: []

@@ -1,0 +1,31 @@
+[flake8]
+# Flake8 linting configuration
+max-line-length = 100
+extend-ignore = E203, W503, E501
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    build,
+    dist,
+    .eggs,
+    *.egg-info,
+    .tox,
+    .mypy_cache,
+    .pytest_cache,
+    .coverage,
+    htmlcov,
+    docs,
+    sim_env/bin,
+    sim_env/lib,
+    sim_env/lib64
+
+# McCabe complexity threshold
+max-complexity = 10
+
+# Error codes to ignore
+# E203: whitespace before ':'
+# W503: line break before binary operator
+# E501: line too long (handled by black)

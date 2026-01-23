@@ -1,0 +1,344 @@
+# Development Environment Configuration
+# Version: 1.0.0
+
+environment: "development"
+
+# Debug settings
+debug: true
+reload: true
+log_level: "DEBUG"
+
+# Database configuration
+database:
+  # Primary PostgreSQL database
+  postgres:
+    host: "localhost"
+    port: 5432
+    database: "frextech_dev"
+    username: "frextech_dev"
+    password: "frextech_dev"
+    pool_size: 10
+    echo: true  # Log SQL queries
+    
+  # Redis for caching and queues
+  redis:
+    host: "localhost"
+    port: 6379
+    database: 0
+    decode_responses: true
+    
+  # MongoDB for document storage (optional)
+  mongodb:
+    enabled: false
+    host: "localhost"
+    port: 27017
+    database: "frextech_dev"
+    
+# Model configuration
+models:
+  # World model
+  world_model:
+    checkpoint: "./models/world_model/dev/model.safetensors"
+    device: "cuda"  # Use "cpu" if no GPU available
+    dtype: "float32"  # Use float32 for stability during development
+    compile: false
+    
+  # Text encoder
+  text_encoder:
+    model_name: "openai/clip-vit-base-patch32"  # Smaller for development
+    device: "cpu"
+    dtype: "float32"
+    
+  # Image encoder
+  image_encoder:
+    model_name: "vit-base-patch16-224"
+    device: "cpu"
+    dtype: "float32"
+    
+  # Safety checker
+  safety_checker:
+    enabled: false  # Disable during development for faster testing
+    
+# Storage configuration
+storage:
+  # Local storage
+  local:
+    base_path: "./storage/development"
+    generations: "./storage/development/generations"
+    exports: "./storage/development/exports"
+    temp: "./storage/development/temp"
+    cleanup_interval: 3600  # Clean up temp files every hour
+    
+  # Cloud storage (disabled in development)
+  s3:
+    enabled: false
+    
+# Cache configuration
+cache:
+  type: "memory"  # Use in-memory cache for development
+  ttl:
+    short: 60     # 1 minute
+    medium: 300   # 5 minutes
+    long: 1800    # 30 minutes
+    
+# Queue configuration
+queue:
+  enabled: true
+  broker_url: "memory://"  # Use in-memory broker for development
+  result_backend: "cache+memory://"
+  
+  # Queue settings
+  queues:
+    generation:
+      workers: 1
+      concurrency: 1
+      
+    editing:
+      workers: 1
+      concurrency: 1
+      
+    export:
+      workers: 1
+      concurrency: 1
+      
+# API configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1  # Single worker for easier debugging
+  cors_allow_origins: ["*"]
+  
+  # Rate limiting (generous in development)
+  rate_limit:
+    enabled: true
+    global: 1000  # requests per hour
+    per_endpoint: 100
+    per_user: 500
+    
+  # Authentication (relaxed in development)
+  auth:
+    enabled: false  # Disable auth for easier testing
+    jwt_secret: "development-secret-change-in-production"
+    api_key_required: false
+    
+# Monitoring and logging
+monitoring:
+  # Logging
+  logging:
+    level: "DEBUG"
+    format: "pretty"  # Human-readable format for development
+    file: "./logs/development.log"
+    max_size: "10MB"
+    
+  # Metrics
+  metrics:
+    enabled: true
+    port: 9090
+    
+  # Health checks
+  health:
+    enabled: true
+    check_database: true
+    check_redis: true
+    check_models: false  # Skip model checks for faster startup
+    
+# Security (relaxed in development)
+security:
+  # Request validation
+  validation:
+    max_request_size: "50MB"  # Larger for testing
+    max_files: 20
+    max_file_size: "10MB"
+    
+  # Headers
+  headers:
+    x_frame_options: "SAMEORIGIN"
+    strict_transport_security: null  # Disable HSTS in development
+    
+  # Content Security Policy
+  csp:
+    enabled: false
+    
+# Feature flags (enable all features for testing)
+features:
+  generation:
+    enabled: true
+    batch_generation: true
+    async_generation: true
+    
+  editing:
+    enabled: true
+    inpainting: true
+    outpainting: true
+    style_transfer: true
+    
+  export:
+    enabled: true
+    formats: ["png", "jpg", "mp4", "glb", "ply"]
+    
+  experimental:
+    novel_view_synthesis: true
+    video_interpolation: true
+    scene_composition: true
+    
+# Testing configuration
+testing:
+  # Test data
+  test_data_path: "./tests/fixtures"
+  
+  # Mock services
+  mock_services: true
+  
+  # Test model (smaller for faster tests)
+  test_model:
+    checkpoint: "./models/world_model/test/model.safetensors"
+    device: "cpu"
+    dtype: "float32"
+    
+# Development tools
+development:
+  # Hot reload
+  hot_reload: true
+  watch_dirs: ["./src", "./configs"]
+  watch_extensions: [".py", ".yaml", ".json"]
+  
+  # Debug toolbar
+  debug_toolbar:
+    enabled: true
+    panels: ["request", "sql", "templates", "cache", "signals"]
+    
+  # Database browser
+  database_browser:
+    enabled: true
+    port: 8081
+    
+  # API documentation
+  api_docs:
+    enabled: true
+    theme: "swagger"  # swagger, redoc, rapidoc
+    try_it_out: true
+    
+  # Email preview
+  email_preview:
+    enabled: true
+    port: 8025
+    
+# Performance settings (optimized for development)
+performance:
+  # Batch sizes (smaller for memory constraints)
+  batch_size: 1
+  max_batch_size: 2
+  
+  # Memory optimization
+  memory:
+    empty_cache_frequency: 100
+    gradient_checkpointing: false
+    
+  # Async processing
+  async_processing: true
+  max_queue_size: 10
+  
+# Error handling (verbose in development)
+error_handling:
+  show_traceback: true
+  log_exceptions: true
+  debug_exceptions: true
+  
+# Seed for reproducibility
+seed: 42
+
+# Local development services
+services:
+  # Docker Compose services
+  docker_compose:
+    enabled: true
+    file: "./docker/docker-compose.dev.yml"
+    
+  # Database migrations
+  migrations:
+    auto_migrate: true
+    migration_dir: "./migrations"
+    
+  # Seed data
+  seed_data:
+    enabled: true
+    path: "./data/seed"
+    
+# External services (local versions)
+external:
+  # SMTP server (MailHog)
+  smtp:
+    host: "localhost"
+    port: 1025
+    
+  # Object storage (MinIO)
+  minio:
+    enabled: false
+    endpoint: "localhost:9000"
+    access_key: "minioadmin"
+    secret_key: "minioadmin"
+    bucket: "frextech-dev"
+    
+  # Message queue (RabbitMQ)
+  rabbitmq:
+    enabled: false
+    host: "localhost"
+    port: 5672
+    username: "guest"
+    password: "guest"
+    
+# Development profiles
+profiles:
+  # Minimal profile (fast startup)
+  minimal:
+    models: false
+    queue: false
+    database: false
+    
+  # Full profile (all features)
+  full:
+    models: true
+    queue: true
+    database: true
+    monitoring: true
+    
+  # Testing profile
+  testing:
+    models: false
+    queue: false
+    database: true
+    test_mode: true
+    
+# Override configuration
+overrides:
+  # Environment variables take precedence
+  use_env_vars: true
+  
+  # Configuration files to merge
+  merge_files: ["./configs/environment/local.yaml"]
+  
+# Development-specific features
+dev_features:
+  # Auto-generate API clients
+  api_client_generation:
+    enabled: true
+    languages: ["python", "typescript", "go"]
+    output_dir: "./clients"
+    
+  # API testing tools
+  api_testing:
+    enabled: true
+    collection: "./tests/api_collection.json"
+    environment: "./tests/api_environment.json"
+    
+  # Database visualization
+  db_visualization:
+    enabled: true
+    tool: "adminer"  # adminer, pgadmin
+    port: 8080
+    
+  # Model visualization
+  model_visualization:
+    enabled: true
+    tool: "netron"
+    port: 8082

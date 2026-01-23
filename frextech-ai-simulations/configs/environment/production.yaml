@@ -1,0 +1,523 @@
+# Production Environment Configuration
+# Version: 1.0.0
+
+environment: "production"
+
+# Debug settings
+debug: false
+reload: false
+log_level: "WARNING"
+
+# Database configuration
+database:
+  # Primary PostgreSQL database (RDS Aurora)
+  postgres:
+    host: "${DB_HOST}"
+    port: 5432
+    database: "frextech_production"
+    username: "${DB_USERNAME}"
+    password: "${DB_PASSWORD}"
+    pool_size: 50
+    max_overflow: 20
+    pool_recycle: 3600
+    pool_pre_ping: true
+    echo: false
+    ssl_mode: "require"
+    
+  # Read replicas
+  read_replicas:
+    enabled: true
+    urls: ["${DB_READ_REPLICA_1}", "${DB_READ_REPLICA_2}"]
+    
+  # Redis for caching and queues (ElastiCache)
+  redis:
+    host: "${REDIS_HOST}"
+    port: 6379
+    database: 0
+    password: "${REDIS_PASSWORD}"
+    decode_responses: true
+    ssl: true
+    health_check_interval: 30
+    retry_on_timeout: true
+    
+  # MongoDB for document storage (Atlas)
+  mongodb:
+    enabled: true
+    connection_string: "${MONGODB_CONNECTION_STRING}"
+    database: "frextech_production"
+    
+# Model configuration
+models:
+  # World model
+  world_model:
+    checkpoint: "s3://frextech-models/world_model/production/latest/model.safetensors"
+    device: "cuda"
+    dtype: "bfloat16"
+    compile: true
+    compile_mode: "max-autotune"
+    load_balancing: true  # Load balance across multiple GPUs
+    
+  # Text encoder
+  text_encoder:
+    model_name: "openai/clip-vit-large-patch14"
+    device: "cuda"
+    dtype: "float16"
+    cache_embeddings: true
+    
+  # Image encoder
+  image_encoder:
+    model_name: "vit-large-patch16-224"
+    device: "cuda"
+    dtype: "float16"
+    cache_embeddings: true
+    
+  # Safety checker
+  safety_checker:
+    enabled: true
+    model_name: "clip"
+    device: "cuda"
+    dtype: "float32"
+    strict_mode: true
+    
+# Storage configuration
+storage:
+  # S3 storage
+  s3:
+    enabled: true
+    endpoint_url: "https://s3.amazonaws.com"
+    bucket: "frextech-production"
+    region: "us-east-1"
+    access_key: "${AWS_ACCESS_KEY_ID}"
+    secret_key: "${AWS_SECRET_ACCESS_KEY}"
+    
+    # S3 features
+    versioning: true
+    lifecycle_rules:
+      - prefix: "temp/"
+        expiration_days: 1
+      - prefix: "generations/"
+        transition_days: 30
+        storage_class: "GLACIER"
+        
+  # CDN configuration (CloudFront)
+  cdn:
+    enabled: true
+    domain: "cdn.frextech.ai"
+    certificate_arn: "${CDN_CERTIFICATE_ARN}"
+    
+# Cache configuration
+cache:
+  type: "redis"
+  ttl:
+    short: 300     # 5 minutes
+    medium: 3600   # 1 hour
+    long: 86400    # 24 hours
+    
+  # Cache warming
+  warming:
+    enabled: true
+    schedule: "0 */6 * * *"  # Every 6 hours
+    patterns: ["popular_prompts", "common_embeddings"]
+    
+# Queue configuration
+queue:
+  enabled: true
+  broker_url: "redis://${REDIS_HOST}:6379/1"
+  result_backend: "redis://${REDIS_HOST}:6379/2"
+  
+  # Queue settings
+  queues:
+    generation:
+      workers: 8
+      concurrency: 4
+      prefetch_multiplier: 4
+      
+    editing:
+      workers: 4
+      concurrency: 2
+      prefetch_multiplier: 2
+      
+    export:
+      workers: 2
+      concurrency: 1
+      prefetch_multiplier: 1
+      
+  # Dead letter queues
+  dead_letter_queues:
+    enabled: true
+    max_retries: 3
+    ttl: 604800  # 7 days
+    
+# API configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 8
+  cors_allow_origins: [
+    "https://frextech.ai",
+    "https://www.frextech.ai",
+    "https://app.frextech.ai"
+  ]
+  
+  # Rate limiting (strict in production)
+  rate_limit:
+    enabled: true
+    global: 10000  # requests per hour
+    per_endpoint:
+      "/api/v1/generate": 100
+      "/api/v1/generate/batch": 50
+      "/api/v1/edit": 200
+      "/api/v1/export": 500
+    per_user: 1000
+    
+  # Authentication (strict in production)
+  auth:
+    enabled: true
+    jwt_secret: "${JWT_SECRET}"
+    api_key_required: true
+    require_2fa: true
+    
+# Monitoring and logging
+monitoring:
+  # Logging (CloudWatch)
+  logging:
+    level: "WARNING"
+    format: "json"
+    stream_name: "frextech-api"
+    retention_days: 30
+    
+  # Metrics (CloudWatch + Prometheus)
+  metrics:
+    enabled: true
+    namespace: "FrexTech/Api"
+    dimensions:
+      - Environment
+      - Service
+      
+  # Health checks
+  health:
+    enabled: true
+    check_database: true
+    check_redis: true
+    check_models: true
+    check_storage: true
+    
+  # Tracing (X-Ray)
+  tracing:
+    enabled: true
+    daemon_address: "127.0.0.1:2000"
+    sampling_rate: 0.05  # 5%
+    
+  # Profiling (Pyroscope)
+  profiling:
+    enabled: true
+    server_address: "https://profiling.frextech.ai"
+    sample_rate: 100  # samples per second
+    
+# Security (strict in production)
+security:
+  # Request validation
+  validation:
+    max_request_size: "10MB"
+    max_files: 10
+    max_file_size: "5MB"
+    allowed_extensions: [".jpg", ".jpeg", ".png", ".mp4", ".obj", ".ply"]
+    
+  # Headers
+  headers:
+    x_frame_options: "DENY"
+    x_content_type_options: "nosniff"
+    x_xss_protection: "1; mode=block"
+    strict_transport_security: "max-age=31536000; includeSubDomains; preload"
+    content_security_policy: "default-src 'self' https://*.frextech.ai"
+    
+  # WAF (Web Application Firewall)
+  waf:
+    enabled: true
+    rules:
+      - AWSManagedRulesCommonRuleSet
+      - AWSManagedRulesKnownBadInputsRuleSet
+      
+  # DDoS protection
+  ddos_protection:
+    enabled: true
+    provider: "AWS Shield Advanced"
+    
+# Feature flags
+features:
+  generation:
+    enabled: true
+    batch_generation: true
+    async_generation: true
+    streaming_generation: false
+    
+  editing:
+    enabled: true
+    inpainting: true
+    outpainting: true
+    style_transfer: true
+    
+  export:
+    enabled: true
+    formats: ["png", "jpg", "mp4", "glb", "ply"]
+    batch_export: true
+    
+  experimental:
+    novel_view_synthesis: false
+    video_interpolation: false
+    scene_composition: false
+    
+# Performance settings (optimized for production)
+performance:
+  # Batch sizes
+  batch_size: 8
+  max_batch_size: 16
+  
+  # Memory optimization
+  memory:
+    empty_cache_frequency: 25
+    gradient_checkpointing: true
+    memory_efficient_attention: true
+    
+  # Async processing
+  async_processing: true
+  max_queue_size: 1000
+  queue_timeout: 300
+  
+  # Connection pooling
+  connection_pooling:
+    database: 50
+    redis: 100
+    s3: 20
+    
+# Error handling
+error_handling:
+  show_traceback: false
+  log_exceptions: true
+  debug_exceptions: false
+  fallback_strategy: "graceful_degradation"
+  
+# External services
+external:
+  # SMTP server (Amazon SES)
+  smtp:
+    host: "email-smtp.us-east-1.amazonaws.com"
+    port: 587
+    username: "${SES_USERNAME}"
+    password: "${SES_PASSWORD}"
+    
+  # Payment processing (Stripe)
+  stripe:
+    enabled: true
+    secret_key: "${STRIPE_SECRET_KEY}"
+    webhook_secret: "${STRIPE_WEBHOOK_SECRET}"
+    
+  # Monitoring services
+  monitoring:
+    datadog:
+      enabled: true
+      api_key: "${DATADOG_API_KEY}"
+      app_key: "${DATADOG_APP_KEY}"
+      
+    sentry:
+      enabled: true
+      dsn: "${SENTRY_DSN}"
+      environment: "production"
+      
+  # CDN (CloudFront)
+  cdn:
+    domain: "cdn.frextech.ai"
+    certificate_arn: "${CDN_CERTIFICATE_ARN}"
+    
+# Scaling configuration
+scaling:
+  # Horizontal pod autoscaler
+  hpa:
+    enabled: true
+    min_replicas: 4
+    max_replicas: 50
+    target_cpu_utilization: 70
+    target_memory_utilization: 80
+    target_requests_per_second: 100
+    
+  # Cluster autoscaler
+  cluster_autoscaler:
+    enabled: true
+    scale_down_delay: 600  # 10 minutes
+    unneeded_time: 300     # 5 minutes
+    
+# Backup and disaster recovery
+backup:
+  # Database backup
+  database:
+    enabled: true
+    schedule: "0 1 * * *"  # Daily at 1 AM UTC
+    retention_days: 35
+    point_in_time_recovery: true
+    
+  # Model backup
+  models:
+    enabled: true
+    schedule: "0 2 * * *"  # Daily at 2 AM UTC
+    retention_versions: 10
+    cross_region: true
+    
+  # Disaster recovery
+  disaster_recovery:
+    enabled: true
+    rpo: 3600  # 1 hour recovery point objective
+    rto: 900   # 15 minutes recovery time objective
+    
+# High availability
+high_availability:
+  # Multi-AZ deployment
+  multi_az: true
+  az_count: 3
+  
+  # Load balancing
+  load_balancer:
+    type: "network"
+    cross_zone_load_balancing: true
+    
+  # Database replication
+  database_replication:
+    read_replicas: 2
+    synchronous_commit: true
+    
+# Security scanning and compliance
+compliance:
+  # Vulnerability scanning
+  vulnerability:
+    enabled: true
+    schedule: "0 0 * * *"  # Daily
+    
+  # Dependency scanning
+  dependency:
+    enabled: true
+    schedule: "0 0 * * 0"  # Weekly
+    
+  # Compliance standards
+  standards:
+    - "SOC2"
+    - "GDPR"
+    - "HIPAA"
+    - "PCI-DSS"
+    
+# Cost optimization
+cost_optimization:
+  # Instance types
+  instance_types:
+    api: "g4dn.2xlarge"
+    worker: "g4dn.4xlarge"
+    database: "db.r5.2xlarge"
+    
+  # Auto-scaling
+  auto_scaling:
+    scale_down_delay: 600  # 10 minutes
+    scale_up_delay: 60     # 1 minute
+    
+  # Spot instances
+  spot_instances:
+    enabled: true
+    max_price: "0.5"  # 50% of on-demand
+    
+# Network configuration
+network:
+  # VPC configuration
+  vpc:
+    cidr: "10.0.0.0/16"
+    subnets:
+      - cidr: "10.0.1.0/24"
+        zone: "us-east-1a"
+        public: false
+      - cidr: "10.0.2.0/24"
+        zone: "us-east-1b"
+        public: false
+      - cidr: "10.0.3.0/24"
+        zone: "us-east-1c"
+        public: false
+        
+  # Load balancer
+  load_balancer:
+    type: "network"
+    ssl_certificate: "${SSL_CERTIFICATE_ARN}"
+    idle_timeout: 60
+    
+  # DNS
+  dns:
+    domain: "api.frextech.ai"
+    ttl: 60
+    
+# Production-specific settings
+production:
+  # SLA (Service Level Agreement)
+  sla:
+    availability: 0.999  # 99.9%
+    latency_p95: 2000    # 2 seconds
+    error_rate: 0.001    # 0.1%
+    
+  # Rate limiting tiers
+  rate_limiting_tiers:
+    free:
+      requests_per_hour: 10
+      concurrent_requests: 1
+      
+    premium:
+      requests_per_hour: 1000
+      concurrent_requests: 4
+      
+    enterprise:
+      requests_per_hour: 10000
+      concurrent_requests: 10
+      
+  # Billing
+  billing:
+    enabled: true
+    currency: "USD"
+    plans:
+      free: 0
+      premium: 49
+      enterprise: 499
+      
+# Alerting and notifications
+alerting:
+  # PagerDuty
+  pagerduty:
+    enabled: true
+    service_key: "${PAGERDUTY_SERVICE_KEY}"
+    
+  # Slack
+  slack:
+    enabled: true
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channels:
+      alerts: "#production-alerts"
+      incidents: "#production-incidents"
+      monitoring: "#production-monitoring"
+      
+  # Email
+  email:
+    enabled: true
+    recipients: ["oncall@frextech.ai", "engineering@frextech.ai"]
+    
+  # Alert thresholds (P0 - P4)
+  thresholds:
+    p0:
+      error_rate: 0.05    # 5%
+      latency_p95: 10000  # 10 seconds
+      notification: "immediate"
+      
+    p1:
+      error_rate: 0.02    # 2%
+      latency_p95: 5000   # 5 seconds
+      notification: "hourly"
+      
+    p2:
+      error_rate: 0.01    # 1%
+      latency_p95: 2000   # 2 seconds
+      notification: "daily"
+      
+    p3:
+      error_rate: 0.005   # 0.5%
+      latency_p95: 1000   # 1 second
+      notification: "weekly"

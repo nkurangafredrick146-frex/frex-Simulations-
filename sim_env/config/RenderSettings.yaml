@@ -1,0 +1,5 @@
+# Rendering settings (placeholder)
+resolution:
+  width: 1280
+  height: 720
+enable_postprocessing: true

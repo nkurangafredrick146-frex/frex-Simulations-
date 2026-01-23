@@ -1,0 +1,18 @@
+{
+  "window_width": 1200,
+  "window_height": 800,
+  "max_particles": 10000,
+  "physics_steps_per_frame": 1,
+  "enable_audio": true,
+  "enable_ml": false,
+  "export_quality": "high",
+  "simulation_speed": 1.0,
+  "render_quality": "high",
+  "enable_shadows": true,
+  "enable_reflections": false,
+  "particle_size": 2.0,
+  "gravity_strength": 9.8,
+  "fluid_viscosity": 0.01,
+  "quantum_entanglement": false,
+  "neural_network_enabled": false
+}

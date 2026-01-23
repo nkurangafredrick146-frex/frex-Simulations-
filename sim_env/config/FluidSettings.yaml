@@ -1,0 +1,3 @@
+# Fluid dynamics settings (placeholder)
+viscosity: 0.001
+solver: "sph"

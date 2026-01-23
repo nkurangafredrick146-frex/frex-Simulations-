@@ -1,0 +1,429 @@
+name: Automated Model Training
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday
+  workflow_dispatch:
+    inputs:
+      training_type:
+        description: 'Type of training'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+        - full
+        - fine_tune
+        - pretrain
+      dataset_version:
+        description: 'Dataset version to use'
+        required: false
+        default: 'latest'
+        type: string
+      model_version:
+        description: 'Base model version'
+        required: false
+        default: 'latest'
+        type: string
+
+env:
+  WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  S3_BUCKET: frextech-models
+  S3_DATASET_PATH: s3://frextech-datasets
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  prepare-data:
+    runs-on: [self-hosted, gpu, large]
+    timeout-minutes: 120
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install boto3 awscli smart-open[aws]
+        pip install -r requirements.txt
+    
+    - name: Download dataset
+      run: |
+        DATASET_VERSION="${{ github.event.inputs.dataset_version || 'latest' }}"
+        if [ "$DATASET_VERSION" = "latest" ]; then
+          DATASET_VERSION=$(aws s3 ls $S3_DATASET_PATH/ | grep "PRE" | sort -r | head -1 | awk '{print $2}' | sed 's/\///')
+        fi
+        
+        echo "Downloading dataset version: $DATASET_VERSION"
+        
+        # Download metadata
+        aws s3 sync "$S3_DATASET_PATH/$DATASET_VERSION/metadata/" ./data/raw/metadata/
+        
+        # Download sample of data for training (adjust based on needs)
+        aws s3 cp "$S3_DATASET_PATH/$DATASET_VERSION/videos/train_sample.tar.gz" ./data/raw/
+        aws s3 cp "$S3_DATASET_PATH/$DATASET_VERSION/images/train_sample.tar.gz" ./data/raw/
+        
+        # Extract
+        tar -xzf ./data/raw/train_sample.tar.gz -C ./data/raw/videos/
+        tar -xzf ./data/raw/train_sample.tar.gz -C ./data/raw/images/
+    
+    - name: Preprocess data
+      run: |
+        python scripts/data/preprocess.py \
+          --input-dir ./data/raw \
+          --output-dir ./data/processed \
+          --config configs/data/preprocessing.yaml \
+          --num-workers 8
+        
+        # Create dataset splits
+        python scripts/data/create_splits.py \
+          --data-dir ./data/processed \
+          --train-ratio 0.8 \
+          --val-ratio 0.1 \
+          --test-ratio 0.1
+    
+    - name: Upload processed data
+      run: |
+        TRAINING_ID=$(date +%Y%m%d_%H%M%S)
+        echo "TRAINING_ID=$TRAINING_ID" >> $GITHUB_ENV
+        
+        aws s3 sync ./data/processed/ "$S3_DATASET_PATH/processed/$TRAINING_ID/" \
+          --exclude "*" \
+          --include "*.pt" \
+          --include "*.npy" \
+          --include "*.json"
+    
+    - name: Save dataset info
+      run: |
+        echo "{
+          \"training_id\": \"${{ env.TRAINING_ID }}\",
+          \"dataset_version\": \"${{ github.event.inputs.dataset_version || 'latest' }}\",
+          \"processed_at\": \"$(date -Iseconds)\",
+          \"samples\": $(find ./data/processed -name "*.pt" -o -name "*.npy" | wc -l),
+          \"size_mb\": $(du -sm ./data/processed | cut -f1)
+        }" > dataset_info.json
+        
+        aws s3 cp dataset_info.json "$S3_DATASET_PATH/processed/${{ env.TRAINING_ID }}/info.json"
+
+  train-world-model:
+    needs: prepare-data
+    runs-on: [self-hosted, gpu, 4x-a100]
+    timeout-minutes: 1440  # 24 hours
+    
+    strategy:
+      matrix:
+        model-size: [base, large, xlarge]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up NVIDIA drivers
+      uses: pytorch/setup-nvidia-driver@v1
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Pull training image
+      run: |
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-training:${{ github.sha }} || \
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-training:latest
+    
+    - name: Set up Weights & Biases
+      run: |
+        wandb login ${{ env.WANDB_API_KEY }}
+        wandb artifact cache cleanup
+    
+    - name: Download processed data
+      run: |
+        aws s3 sync "$S3_DATASET_PATH/processed/${{ needs.prepare-data.outputs.training-id }}/" ./data/processed/
+    
+    - name: Start training
+      env:
+        NCCL_DEBUG: INFO
+        NCCL_IB_DISABLE: 1
+        OMP_NUM_THREADS: 8
+        CUDA_VISIBLE_DEVICES: 0,1,2,3
+      run: |
+        docker run --gpus all \
+          -v $(pwd)/data:/app/data \
+          -v $(pwd)/configs:/app/configs \
+          -v $(pwd)/models:/app/models \
+          -v $(pwd)/logs:/app/logs \
+          -e WANDB_API_KEY=${{ env.WANDB_API_KEY }} \
+          -e TRAINING_ID=${{ needs.prepare-data.outputs.training-id }} \
+          -e MODEL_SIZE=${{ matrix.model-size }} \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-training:${{ github.sha }} \
+          python scripts/training/train_world_model.py \
+            --config configs/model/train_${{ matrix.model-size }}.yaml \
+            --data-dir ./data/processed \
+            --output-dir ./models/world_model/${{ matrix.model-size }}_${{ needs.prepare-data.outputs.training-id }} \
+            --experiment-name "world_model_${{ matrix.model-size }}_${{ github.sha }}" \
+            --mixed-precision bf16 \
+            --gradient-accumulation 4 \
+            --num-gpus 4 \
+            --resume-from-checkpoint latest
+    
+    - name: Monitor training
+      run: |
+        # Monitor GPU usage and training progress
+        timeout 60 watch -n 10 \
+          "nvidia-smi && \
+           tail -n 20 logs/training/world_model_${{ matrix.model-size }}_*.log" || true
+    
+    - name: Upload checkpoints
+      run: |
+        MODEL_PATH="./models/world_model/${{ matrix.model-size }}_${{ needs.prepare-data.outputs.training-id }}"
+        
+        # Upload final checkpoint
+        aws s3 sync "$MODEL_PATH/final/" \
+          "s3://$S3_BUCKET/world_model/${{ matrix.model-size }}/${{ needs.prepare-data.outputs.training-id }}/" \
+          --exclude "*" \
+          --include "*.pt" \
+          --include "*.safetensors"
+        
+        # Upload best checkpoint
+        if [ -d "$MODEL_PATH/best" ]; then
+          aws s3 sync "$MODEL_PATH/best/" \
+            "s3://$S3_BUCKET/world_model/${{ matrix.model-size }}/best/" \
+            --exclude "*" \
+            --include "*.pt" \
+            --include "*.safetensors"
+        fi
+    
+    - name: Log training metrics
+      if: always()
+      run: |
+        # Extract final metrics from logs
+        python scripts/training/extract_metrics.py \
+          --log-file "logs/training/world_model_${{ matrix.model-size }}_*.log" \
+          --output-file "metrics_${{ matrix.model-size }}.json"
+        
+        aws s3 cp "metrics_${{ matrix.model-size }}.json" \
+          "s3://$S3_BUCKET/world_model/${{ matrix.model-size }}/${{ needs.prepare-data.outputs.training-id }}/metrics.json"
+        
+        # Update model registry
+        python scripts/registry/update_model_registry.py \
+          --model-type world_model \
+          --model-size ${{ matrix.model-size }} \
+          --training-id ${{ needs.prepare-data.outputs.training-id }} \
+          --metrics-file "metrics_${{ matrix.model-size }}.json" \
+          --s3-path "s3://$S3_BUCKET/world_model/${{ matrix.model-size }}/${{ needs.prepare-data.outputs.training-id }}"
+
+  evaluate-model:
+    needs: train-world-model
+    runs-on: [self-hosted, gpu, a100]
+    timeout-minutes: 240
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Download test data
+      run: |
+        aws s3 sync "$S3_DATASET_PATH/processed/${{ needs.prepare-data.outputs.training-id }}/test/" ./data/test/
+    
+    - name: Run evaluation
+      run: |
+        python scripts/training/evaluate_model.py \
+          --model-dir "s3://$S3_BUCKET/world_model/base/${{ needs.prepare-data.outputs.training-id }}" \
+          --test-data ./data/test \
+          --output-dir ./results/evaluation \
+          --metrics all \
+          --batch-size 32
+        
+        # Generate evaluation report
+        python scripts/training/generate_evaluation_report.py \
+          --results-dir ./results/evaluation \
+          --output-file ./results/evaluation_report.html
+    
+    - name: Run benchmark tests
+      run: |
+        python tests/performance/benchmark_inference.py \
+          --model-path "s3://$S3_BUCKET/world_model/base/${{ needs.prepare-data.outputs.training-id }}" \
+          --output-file ./results/benchmark_results.json \
+          --num-iterations 100 \
+          --batch-sizes 1,4,16,32
+    
+    - name: Upload evaluation results
+      run: |
+        aws s3 sync ./results/ \
+          "s3://$S3_BUCKET/evaluations/${{ needs.prepare-data.outputs.training-id }}/" \
+          --exclude "*" \
+          --include "*.json" \
+          --include "*.html" \
+          --include "*.csv"
+    
+    - name: Compare with previous models
+      run: |
+        python scripts/registry/compare_models.py \
+          --current-model "${{ needs.prepare-data.outputs.training-id }}" \
+          --num-previous 5 \
+          --output-file ./results/model_comparison.json
+        
+        # Check if new model is better
+        python scripts/registry/check_model_improvement.py \
+          --comparison-file ./results/model_comparison.json \
+          --threshold 0.01  # 1% improvement threshold
+
+  deploy-model:
+    needs: evaluate-model
+    runs-on: ubuntu-latest
+    if: success()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+    
+    - name: Configure kubectl
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.K8S_CONFIG_STAGING }}" | base64 --decode > $HOME/.kube/config
+    
+    - name: Update model in staging
+      run: |
+        # Update ConfigMap with new model path
+        kubectl create configmap frextech-model-config \
+          --from-literal=model_version=${{ needs.prepare-data.outputs.training-id }} \
+          --from-literal=model_path="s3://$S3_BUCKET/world_model/base/${{ needs.prepare-data.outputs.training-id }}" \
+          --dry-run=client -o yaml | \
+          kubectl apply -f - -n ${{ env.K8S_NAMESPACE }}-staging
+        
+        # Restart deployment to pick up new config
+        kubectl rollout restart deployment/frextech-api \
+          -n ${{ env.K8S_NAMESPACE }}-staging
+        
+        kubectl rollout status deployment/frextech-api \
+          -n ${{ env.K8S_NAMESPACE }}-staging \
+          --timeout=300s
+    
+    - name: Test new model in staging
+      run: |
+        API_URL=$(kubectl get svc frextech-api -n ${{ env.K8S_NAMESPACE }}-staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        
+        # Run inference tests
+        python scripts/training/test_model_deployment.py \
+          --api-url "http://$API_URL:8000" \
+          --test-samples 10 \
+          --output-file ./results/deployment_test.json
+        
+        # Check for errors
+        ERROR_COUNT=$(jq '.errors | length' ./results/deployment_test.json)
+        if [ "$ERROR_COUNT" -gt 0 ]; then
+          echo "Deployment test found $ERROR_COUNT errors"
+          exit 1
+        fi
+    
+    - name: Update model registry
+      run: |
+        python scripts/registry/promote_model.py \
+          --training-id ${{ needs.prepare-data.outputs.training-id }} \
+          --environment staging \
+          --status passed_staging_tests
+        
+        # If model passed all tests, mark as production-ready
+        if [ "${{ needs.evaluate-model.outputs.model_improved }}" = "true" ]; then
+          python scripts/registry/promote_model.py \
+            --training-id ${{ needs.prepare-data.outputs.training-id }} \
+            --environment production_candidate \
+            --status production_ready
+        fi
+
+  notify-results:
+    needs: [prepare-data, train-world-model, evaluate-model, deploy-model]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Compile training report
+      run: |
+        python scripts/training/generate_training_report.py \
+          --training-id ${{ needs.prepare-data.outputs.training-id }} \
+          --output-file ./results/training_report.md
+        
+        # Convert to HTML for email
+        pandoc ./results/training_report.md -o ./results/training_report.html
+    
+    - name: Send email notification
+      uses: dawidd6/action-send-mail@v3
+      if: always()
+      with:
+        server_address: smtp.gmail.com
+        server_port: 587
+        username: ${{ secrets.EMAIL_USERNAME }}
+        password: ${{ secrets.EMAIL_PASSWORD }}
+        subject: "Training Results: ${{ github.repository }} - ${{ needs.prepare-data.outputs.training-id }}"
+        to: ${{ secrets.TRAINING_NOTIFICATION_EMAIL }}
+        from: GitHub Actions <${{ secrets.EMAIL_USERNAME }}>
+        html_body: file://results/training_report.html
+        attachments: ./results/training_report.html, ./results/evaluation_report.html
+    
+    - name: Send Slack notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: |
+          Model Training Pipeline ${{ job.status }}
+          Training ID: ${{ needs.prepare-data.outputs.training-id }}
+          Model: ${{ needs.train-world-model.result }}
+          Evaluation: ${{ needs.evaluate-model.outputs.model_improved }}
+          Deployment: ${{ needs.deploy-model.result }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    
+    - name: Archive results
+      uses: actions/upload-artifact@v3
+      with:
+        name: training-results-${{ needs.prepare-data.outputs.training-id }}
+        path: |
+          ./results/
+          ./logs/
+          ./metrics_*.json
+        retention-days: 30

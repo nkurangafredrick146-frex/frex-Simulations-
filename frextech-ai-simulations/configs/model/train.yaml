@@ -1,0 +1,510 @@
+# Training configuration for FrexTech AI World Model
+# Version: 1.0.0
+
+training:
+  # Experiment
+  experiment:
+    name: "world_model_v1_training"
+    description: "Full training of world model v1"
+    project: "frextech-world-model"
+    tags: ["full_training", "v1", "world_model"]
+    resume_from: null  # Path to checkpoint or null
+    
+  # Dataset configuration
+  dataset:
+    name: "multimodal_scenes"
+    version: "1.0.0"
+    split: "train"
+    
+    # Data loading
+    batch_size: 32
+    micro_batch_size: 4
+    gradient_accumulation_steps: 8
+    num_workers: 8
+    prefetch_factor: 2
+    pin_memory: true
+    persistent_workers: true
+    drop_last: true
+    
+    # Augmentations
+    augmentations:
+      enabled: true
+      # Image augmentations
+      image:
+        random_crop: true
+        crop_size: 256
+        random_flip: true
+        color_jitter:
+          brightness: 0.2
+          contrast: 0.2
+          saturation: 0.2
+          hue: 0.1
+        random_rotation: true
+        rotation_degrees: 10
+        
+      # Text augmentations
+      text:
+        random_dropout: true
+        dropout_prob: 0.1
+        synonym_replacement: false
+        back_translation: false
+        
+      # 3D augmentations
+      scene:
+        random_scale: true
+        scale_range: [0.8, 1.2]
+        random_rotation: true
+        rotation_range: [-15, 15]
+        random_translation: true
+        translation_range: [-0.1, 0.1]
+    
+    # Sampling strategy
+    sampling:
+      weighted: true
+      weights: [0.4, 0.3, 0.3]  # [images, videos, 3d_scenes]
+      oversample_minority: true
+      shuffle: true
+      shuffle_buffer_size: 10000
+      
+  # Training schedule
+  schedule:
+    total_steps: 1000000
+    warmup_steps: 5000
+    validation_frequency: 1000
+    checkpoint_frequency: 5000
+    logging_frequency: 100
+    evaluation_frequency: 5000
+    
+    # Curriculum learning
+    curriculum:
+      enabled: true
+      stages:
+        - steps: 100000
+          difficulty: "easy"
+          batch_size: 16
+          learning_rate: 1.0e-4
+          
+        - steps: 300000
+          difficulty: "medium"
+          batch_size: 32
+          learning_rate: 5.0e-5
+          
+        - steps: 1000000
+          difficulty: "hard"
+          batch_size: 64
+          learning_rate: 1.0e-5
+    
+  # Optimization
+  optimizer:
+    type: "adamw"
+    
+    # Learning rates
+    learning_rate: 1.0e-4
+    min_learning_rate: 1.0e-6
+    
+    # AdamW parameters
+    beta1: 0.9
+    beta2: 0.95
+    eps: 1.0e-8
+    weight_decay: 0.01
+    amsgrad: false
+    
+    # Layer-wise learning rate decay
+    layer_decay: 0.75
+    parameter_groups:
+      - name: "embedding"
+        lr_multiplier: 1.0
+      - name: "attention"
+        lr_multiplier: 1.0
+      - name: "mlp"
+        lr_multiplier: 1.0
+      - name: "norm"
+        lr_multiplier: 0.1
+      - name: "bias"
+        lr_multiplier: 2.0
+        weight_decay: 0.0
+    
+  # Learning rate scheduler
+  scheduler:
+    type: "cosine_with_warmup"
+    
+    # Warmup
+    warmup_steps: 5000
+    warmup_method: "linear"
+    
+    # Cosine decay
+    total_steps: 1000000
+    num_cycles: 0.5
+    last_epoch: -1
+    
+    # Linear decay (alternative)
+    linear_decay:
+      start_factor: 1.0
+      end_factor: 0.01
+      total_iters: 1000000
+    
+  # Loss functions
+  loss:
+    # Diffusion loss
+    diffusion:
+      type: "mse"  # mse, l1, huber
+      weight: 1.0
+      reduction: "mean"
+      
+    # Reconstruction loss
+    reconstruction:
+      type: "l1"
+      weight: 0.1
+      reduction: "mean"
+      
+    # Perceptual loss
+    perceptual:
+      type: "lpips"
+      weight: 0.01
+      network: "alex"  # alex, vgg, squeezenet
+      spatial: false
+      
+    # Adversarial loss (optional)
+    adversarial:
+      enabled: false
+      type: "hinge"
+      weight: 0.05
+      discriminator_steps: 1
+      generator_steps: 1
+      
+    # Contrastive loss
+    contrastive:
+      enabled: true
+      type: "info_nce"
+      weight: 0.1
+      temperature: 0.07
+      projection_dim: 256
+      
+    # Regularization losses
+    regularization:
+      # Weight decay (handled by optimizer)
+      weight_decay: 0.01
+      
+      # Gradient penalty
+      gradient_penalty:
+        enabled: false
+        weight: 10.0
+        norm: 2
+        
+      # Feature matching
+      feature_matching:
+        enabled: false
+        weight: 0.1
+        
+      # KL divergence
+      kl_divergence:
+        enabled: false
+        weight: 0.001
+        
+    # Loss balancing
+    balancing:
+      method: "uncertainty"  # fixed, uncertainty, gradnorm
+      update_frequency: 100
+    
+  # Gradient handling
+  gradient:
+    # Gradient clipping
+    clipping:
+      enabled: true
+      type: "norm"  # norm, value
+      max_norm: 1.0
+      norm_type: 2.0
+      
+    # Gradient accumulation
+    accumulation:
+      steps: 8
+      sync: true
+      
+    # Gradient checkpointing
+    checkpointing:
+      enabled: true
+      strategy: "uniform"  # uniform, block
+      checkpoint_every: 1
+      
+  # Mixed precision training
+  mixed_precision:
+    enabled: true
+    dtype: "bfloat16"  # float16, bfloat16
+    autocast: true
+    
+    # Gradient scaling
+    grad_scaler:
+      enabled: true
+      init_scale: 65536.0
+      growth_factor: 2.0
+      backoff_factor: 0.5
+      growth_interval: 2000
+      
+  # Distributed training
+  distributed:
+    enabled: true
+    backend: "nccl"
+    strategy: "ddp"  # ddp, fsdp, deepspeed
+    
+    # Data parallel
+    data_parallel:
+      world_size: 4
+      local_rank: 0
+      
+    # Model parallel
+    model_parallel:
+      tensor_parallel: 1
+      pipeline_parallel: 1
+      sequence_parallel: false
+      
+    # DeepSpeed configuration (if using)
+    deepspeed:
+      enabled: false
+      config: "configs/deepspeed/zero2.json"
+      
+    # FairScale FSDP (if using)
+    fsdp:
+      enabled: false
+      min_num_params: 1e8
+      cpu_offload: false
+      
+  # Checkpointing
+  checkpoint:
+    # Saving
+    save_dir: "./checkpoints"
+    save_frequency: 5000
+    save_best: true
+    save_last: true
+    
+    # Metrics for best checkpoint
+    metric: "val_loss"
+    mode: "min"  # min or max
+    
+    # Checkpoint format
+    format: "torch"  # torch, safetensors
+    compression: true
+    
+    # Keep only last N checkpoints
+    keep_last: 10
+    keep_best: 5
+    
+    # Resume from checkpoint
+    resume:
+      enabled: false
+      path: null
+      strict: true
+      load_optimizer: true
+      load_scheduler: true
+      load_metrics: true
+      
+  # Early stopping
+  early_stopping:
+    enabled: true
+    patience: 10
+    min_delta: 0.001
+    metric: "val_loss"
+    mode: "min"
+    verbose: true
+    
+  # Monitoring and logging
+  monitoring:
+    # Console logging
+    console:
+      enabled: true
+      level: "INFO"
+      format: "detailed"  # simple, detailed
+      
+    # File logging
+    file:
+      enabled: true
+      path: "./logs/training.log"
+      level: "DEBUG"
+      max_size: "100MB"
+      backup_count: 10
+      
+    # TensorBoard
+    tensorboard:
+      enabled: true
+      log_dir: "./logs/tensorboard"
+      update_frequency: 100
+      
+    # Weights & Biases
+    wandb:
+      enabled: true
+      project: "frextech-world-model"
+      entity: "frextech"
+      run_name: "${EXPERIMENT_NAME}"
+      tags: ["training", "world_model"]
+      config: "auto"
+      log_frequency: 100
+      
+    # MLflow
+    mlflow:
+      enabled: false
+      tracking_uri: "http://localhost:5000"
+      experiment_name: "world_model"
+      
+    # Custom metrics
+    metrics:
+      train: ["loss", "learning_rate", "grad_norm"]
+      validation: ["loss", "psnr", "ssim", "fid", "lpips"]
+      compute_frequency: 100
+      
+  # Profiling
+  profiling:
+    enabled: false
+    profile_steps: 100
+    profile_memory: true
+    profile_cpu: true
+    profile_cuda: true
+    output_dir: "./profiles"
+    
+  # Debugging
+  debugging:
+    # NaN/Inf detection
+    detect_anomaly: true
+    
+    # Gradient checking
+    check_gradients: false
+    gradient_norm_threshold: 1000.0
+    
+    # Overfitting check
+    overfit_batch: false
+    overfit_batch_size: 1
+    
+    # Deterministic training
+    deterministic: false
+    seed: 42
+    
+  # Hardware optimization
+  hardware:
+    # GPU optimization
+    gpu:
+      cudnn_benchmark: true
+      cudnn_deterministic: false
+      allow_tf32: true
+      memory_efficient: true
+      
+    # CPU optimization
+    cpu:
+      num_threads: 8
+      pin_memory: true
+      non_blocking: true
+      
+    # IO optimization
+    io:
+      prefetch_factor: 2
+      persistent_workers: true
+      multiprocessing_context: "spawn"
+      
+  # Callbacks
+  callbacks:
+    # Learning rate scheduler callback
+    lr_scheduler:
+      frequency: "step"  # step, epoch
+      verbose: false
+      
+    # Checkpoint callback
+    checkpoint:
+      save_frequency: 5000
+      verbose: true
+      
+    # Early stopping callback
+    early_stopping:
+      patience: 10
+      verbose: true
+      
+    # Progress bar callback
+    progress_bar:
+      enabled: true
+      refresh_rate: 10
+      
+    # Model summary callback
+    model_summary:
+      enabled: true
+      max_depth: 3
+      
+  # Validation
+  validation:
+    # Validation dataset
+    dataset:
+      split: "validation"
+      batch_size: 16
+      num_workers: 4
+      shuffle: false
+      
+    # Validation metrics
+    metrics:
+      - name: "loss"
+        type: "diffusion"
+        
+      - name: "psnr"
+        type: "image_quality"
+        
+      - name: "ssim"
+        type: "image_quality"
+        
+      - name: "fid"
+        type: "distribution"
+        num_samples: 5000
+        
+      - name: "lpips"
+        type: "perceptual"
+        
+    # Visualization during validation
+    visualization:
+      enabled: true
+      frequency: 5000
+      num_samples: 4
+      save_dir: "./results/validation"
+      
+  # Testing
+  testing:
+    # Test dataset
+    dataset:
+      split: "test"
+      batch_size: 16
+      num_workers: 4
+      shuffle: false
+      
+    # Test metrics
+    metrics:
+      - name: "fid"
+        type: "distribution"
+        num_samples: 10000
+        
+      - name: "psnr"
+        type: "image_quality"
+        
+      - name: "ssim"
+        type: "image_quality"
+        
+      - name: "lpips"
+        type: "perceptual"
+        
+      - name: "inception_score"
+        type: "distribution"
+        num_samples: 50000
+        
+    # Generate samples
+    generate_samples:
+      enabled: true
+      num_samples: 100
+      guidance_scales: [3.0, 5.0, 7.5, 10.0]
+      save_dir: "./results/test_samples"
+      
+  # Hyperparameter search (optional)
+  hyperparameter_search:
+    enabled: false
+    method: "random"  # grid, random, bayesian
+    num_trials: 20
+    parameters:
+      learning_rate:
+        min: 1.0e-5
+        max: 1.0e-3
+        log_scale: true
+      batch_size:
+        values: [16, 32, 64]
+      weight_decay:
+        min: 0.0
+        max: 0.1

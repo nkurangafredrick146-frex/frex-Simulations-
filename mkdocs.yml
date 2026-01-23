@@ -1,0 +1,29 @@
+site_name: FrexTech Simulation
+theme:
+  name: material
+  logo: assets/logo.png         # Add your logo here
+  favicon: assets/favicon.ico   # Optional site icon
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: deep purple
+  font:
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - search.suggest
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Architecture: architecture.md
+  - Modules:
+    - Physics: modules/physics.md
+    - Rendering: modules/rendering.md
+    - ML: modules/ml.md
+    - Quantum: modules/quantum.md
+  - Services: services.md
+  - Usage: usage.md
+repo_url: https://github.com/nkurangafredrick146-code/video-simulation-software

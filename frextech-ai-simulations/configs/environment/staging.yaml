@@ -1,0 +1,373 @@
+# Staging Environment Configuration
+# Version: 1.0.0
+
+environment: "staging"
+
+# Debug settings
+debug: false
+reload: false
+log_level: "INFO"
+
+# Database configuration
+database:
+  # Primary PostgreSQL database
+  postgres:
+    host: "${DB_HOST}"
+    port: 5432
+    database: "frextech_staging"
+    username: "${DB_USERNAME}"
+    password: "${DB_PASSWORD}"
+    pool_size: 20
+    echo: false
+    
+  # Redis for caching and queues
+  redis:
+    host: "${REDIS_HOST}"
+    port: 6379
+    database: 0
+    password: "${REDIS_PASSWORD}"
+    decode_responses: true
+    ssl: true
+    
+  # MongoDB for document storage
+  mongodb:
+    enabled: true
+    host: "${MONGODB_HOST}"
+    port: 27017
+    database: "frextech_staging"
+    username: "${MONGODB_USERNAME}"
+    password: "${MONGODB_PASSWORD}"
+    
+# Model configuration
+models:
+  # World model
+  world_model:
+    checkpoint: "s3://frextech-models/world_model/staging/latest/model.safetensors"
+    device: "cuda"
+    dtype: "bfloat16"
+    compile: true
+    compile_mode: "reduce-overhead"
+    
+  # Text encoder
+  text_encoder:
+    model_name: "openai/clip-vit-large-patch14"
+    device: "cuda"
+    dtype: "float16"
+    
+  # Image encoder
+  image_encoder:
+    model_name: "vit-large-patch16-224"
+    device: "cuda"
+    dtype: "float16"
+    
+  # Safety checker
+  safety_checker:
+    enabled: true
+    model_name: "clip"
+    device: "cuda"
+    dtype: "float32"
+    
+# Storage configuration
+storage:
+  # S3 storage
+  s3:
+    enabled: true
+    endpoint_url: "https://s3.amazonaws.com"
+    bucket: "frextech-staging"
+    region: "us-east-1"
+    access_key: "${AWS_ACCESS_KEY_ID}"
+    secret_key: "${AWS_SECRET_ACCESS_KEY}"
+    
+  # Local storage (for temp files)
+  local:
+    base_path: "/tmp/frextech/staging"
+    cleanup_interval: 300  # Clean up every 5 minutes
+    
+# Cache configuration
+cache:
+  type: "redis"
+  ttl:
+    short: 300     # 5 minutes
+    medium: 3600   # 1 hour
+    long: 86400    # 24 hours
+    
+# Queue configuration
+queue:
+  enabled: true
+  broker_url: "redis://${REDIS_HOST}:6379/1"
+  result_backend: "redis://${REDIS_HOST}:6379/2"
+  
+  # Queue settings
+  queues:
+    generation:
+      workers: 2
+      concurrency: 2
+      
+    editing:
+      workers: 2
+      concurrency: 2
+      
+    export:
+      workers: 1
+      concurrency: 1
+      
+# API configuration
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  cors_allow_origins: [
+    "https://staging.frextech.ai",
+    "https://*.frextech.ai"
+  ]
+  
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    global: 1000  # requests per hour
+    per_endpoint: 100
+    per_user: 500
+    
+  # Authentication
+  auth:
+    enabled: true
+    jwt_secret: "${JWT_SECRET}"
+    api_key_required: true
+    
+# Monitoring and logging
+monitoring:
+  # Logging
+  logging:
+    level: "INFO"
+    format: "json"
+    file: "/var/log/frextech/api.log"
+    max_size: "100MB"
+    
+  # Metrics (Prometheus)
+  metrics:
+    enabled: true
+    port: 9090
+    
+  # Health checks
+  health:
+    enabled: true
+    check_database: true
+    check_redis: true
+    check_models: true
+    
+  # Tracing (Jaeger)
+  tracing:
+    enabled: true
+    endpoint: "${JAEGER_ENDPOINT}"
+    sample_rate: 0.1
+    
+# Security
+security:
+  # Request validation
+  validation:
+    max_request_size: "10MB"
+    max_files: 10
+    max_file_size: "5MB"
+    
+  # Headers
+  headers:
+    x_frame_options: "DENY"
+    x_content_type_options: "nosniff"
+    x_xss_protection: "1; mode=block"
+    strict_transport_security: "max-age=31536000; includeSubDomains"
+    
+  # Content Security Policy
+  csp:
+    enabled: true
+    policy: "default-src 'self' https://staging.frextech.ai"
+    
+# Feature flags
+features:
+  generation:
+    enabled: true
+    batch_generation: true
+    async_generation: true
+    
+  editing:
+    enabled: true
+    inpainting: true
+    outpainting: true
+    style_transfer: true
+    
+  export:
+    enabled: true
+    formats: ["png", "jpg", "mp4", "glb", "ply"]
+    
+  experimental:
+    novel_view_synthesis: false
+    video_interpolation: false
+    scene_composition: false
+    
+# Performance settings
+performance:
+  # Batch sizes
+  batch_size: 4
+  max_batch_size: 8
+  
+  # Memory optimization
+  memory:
+    empty_cache_frequency: 50
+    gradient_checkpointing: true
+    
+  # Async processing
+  async_processing: true
+  max_queue_size: 100
+  
+# Error handling
+error_handling:
+  show_traceback: false
+  log_exceptions: true
+  debug_exceptions: false
+  
+# External services
+external:
+  # SMTP server
+  smtp:
+    host: "${SMTP_HOST}"
+    port: 587
+    username: "${SMTP_USERNAME}"
+    password: "${SMTP_PASSWORD}"
+    
+  # Monitoring services
+  monitoring:
+    datadog:
+      enabled: true
+      api_key: "${DATADOG_API_KEY}"
+      
+    sentry:
+      enabled: true
+      dsn: "${SENTRY_DSN}"
+      
+# Scaling configuration
+scaling:
+  # Horizontal pod autoscaler
+  hpa:
+    enabled: true
+    min_replicas: 2
+    max_replicas: 10
+    target_cpu_utilization: 70
+    target_memory_utilization: 80
+    
+  # Vertical pod autoscaler
+  vpa:
+    enabled: false
+    
+# Backup configuration
+backup:
+  # Database backup
+  database:
+    enabled: true
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    retention_days: 7
+    
+  # Model backup
+  models:
+    enabled: true
+    schedule: "0 3 * * *"  # Daily at 3 AM
+    retention_versions: 5
+    
+# Testing in staging
+testing:
+  # Integration tests
+  integration_tests:
+    enabled: true
+    schedule: "0 4 * * *"  # Daily at 4 AM
+    
+  # Load tests
+  load_tests:
+    enabled: true
+    schedule: "0 5 * * 0"  # Weekly on Sunday at 5 AM
+    
+# Deployment configuration
+deployment:
+  # Canary deployment
+  canary:
+    enabled: true
+    percentage: 10  # 10% traffic to new version
+    
+  # Blue-green deployment
+  blue_green:
+    enabled: false
+    
+# Security scanning
+security_scanning:
+  # Vulnerability scanning
+  vulnerability:
+    enabled: true
+    schedule: "0 1 * * *"  # Daily at 1 AM
+    
+  # Dependency scanning
+  dependency:
+    enabled: true
+    schedule: "0 0 * * 0"  # Weekly on Sunday
+    
+# Cost optimization
+cost_optimization:
+  # Instance types
+  instance_types:
+    api: "g4dn.xlarge"
+    worker: "g4dn.xlarge"
+    
+  # Auto-scaling
+  auto_scaling:
+    scale_down_delay: 300  # 5 minutes
+    scale_up_delay: 60     # 1 minute
+    
+# Network configuration
+network:
+  # VPC configuration
+  vpc:
+    cidr: "10.0.0.0/16"
+    subnets:
+      - cidr: "10.0.1.0/24"
+        zone: "us-east-1a"
+      - cidr: "10.0.2.0/24"
+        zone: "us-east-1b"
+        
+  # Load balancer
+  load_balancer:
+    type: "application"
+    ssl_certificate: "${SSL_CERTIFICATE_ARN}"
+    
+# Staging-specific settings
+staging:
+  # Test users
+  test_users:
+    enabled: true
+    count: 10
+    
+  # Test data
+  test_data:
+    enabled: true
+    size: "10GB"
+    
+  # Performance thresholds
+  performance_thresholds:
+    api_response_time: 1000  # ms
+    generation_time: 30000   # ms
+    error_rate: 0.01         # 1%
+    
+# Alerting configuration
+alerting:
+  # Slack alerts
+  slack:
+    enabled: true
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#staging-alerts"
+    
+  # Email alerts
+  email:
+    enabled: true
+    recipients: ["team@frextech.ai"]
+    
+  # Alert thresholds
+  thresholds:
+    error_rate: 0.05    # 5%
+    latency_p95: 5000   # 5 seconds
+    cpu_usage: 80       # 80%
+    memory_usage: 90    # 90%

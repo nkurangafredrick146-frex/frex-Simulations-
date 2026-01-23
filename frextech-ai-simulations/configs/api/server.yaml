@@ -1,0 +1,525 @@
+# API Server Configuration for FrexTech AI
+# Version: 1.0.0
+
+server:
+  # Basic settings
+  name: "frextech-ai-api"
+  version: "1.0.0"
+  environment: "production"  # development, staging, production
+  debug: false
+  
+  # Network configuration
+  network:
+    host: "0.0.0.0"
+    port: 8000
+    workers: 4
+    backlog: 2048
+    reuse_port: true
+    reuse_address: true
+    
+  # SSL/TLS configuration
+  ssl:
+    enabled: false
+    certfile: "/path/to/cert.pem"
+    keyfile: "/path/to/key.pem"
+    password: null
+    ssl_version: 2  # PROTOCOL_TLS
+    cert_reqs: 0    # ssl.CERT_NONE
+    ca_certs: null
+    ciphers: "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20"
+    
+  # Uvicorn settings
+  uvicorn:
+    log_level: "info"
+    access_log: true
+    proxy_headers: true
+    forwarded_allow_ips: "*"
+    limit_concurrency: null
+    limit_max_requests: null
+    timeout_keep_alive: 5
+    timeout_graceful_shutdown: 10.0
+    
+  # Application settings
+  app:
+    title: "FrexTech AI API"
+    description: "AI-powered 3D world generation and editing API"
+    version: "1.0.0"
+    docs_url: "/docs"
+    redoc_url: "/redoc"
+    openapi_url: "/openapi.json"
+    openapi_tags: [
+      {"name": "generation", "description": "World generation endpoints"},
+      {"name": "editing", "description": "World editing endpoints"},
+      {"name": "export", "description": "Export endpoints"},
+      {"name": "management", "description": "API management endpoints"}
+    ]
+    
+  # CORS configuration
+  cors:
+    enabled: true
+    allow_origins: ["*"]  # In production, specify domains
+    allow_origin_regex: null
+    allow_methods: ["*"]
+    allow_headers: ["*"]
+    allow_credentials: true
+    expose_headers: []
+    max_age: 600
+    
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    storage_url: "redis://localhost:6379/0"
+    
+    # Global limits
+    global:
+      enabled: true
+      requests: 1000
+      period: 3600  # seconds
+    
+    # Endpoint-specific limits
+    endpoints:
+      "/api/v1/generate":
+        requests: 100
+        period: 3600
+        
+      "/api/v1/generate/batch":
+        requests: 50
+        period: 3600
+        
+      "/api/v1/edit":
+        requests: 200
+        period: 3600
+        
+      "/api/v1/export":
+        requests: 500
+        period: 3600
+    
+    # User-based limits
+    users:
+      enabled: true
+      default:
+        requests: 100
+        period: 3600
+        
+      premium:
+        requests: 1000
+        period: 3600
+        
+      enterprise:
+        requests: 10000
+        period: 3600
+    
+    # IP-based limits
+    ip:
+      enabled: true
+      requests: 100
+      period: 3600
+      whitelist: ["127.0.0.1", "10.0.0.0/8"]
+      blacklist: []
+      
+  # Authentication
+  auth:
+    enabled: true
+    
+    # JWT configuration
+    jwt:
+      secret_key: "${JWT_SECRET_KEY}"  # From environment
+      algorithm: "HS256"
+      access_token_expire_minutes: 30
+      refresh_token_expire_days: 7
+      
+    # API Keys
+    api_keys:
+      enabled: true
+      header_name: "X-API-Key"
+      query_param: "api_key"
+      
+    # OAuth2
+    oauth2:
+      enabled: false
+      providers:
+        google:
+          client_id: "${GOOGLE_CLIENT_ID}"
+          client_secret: "${GOOGLE_CLIENT_SECRET}"
+          
+        github:
+          client_id: "${GITHUB_CLIENT_ID}"
+          client_secret: "${GITHUB_CLIENT_SECRET}"
+    
+    # Role-based access control
+    rbac:
+      enabled: true
+      roles:
+        admin:
+          permissions: ["*"]
+          
+        user:
+          permissions: ["generate", "edit", "export"]
+          
+        viewer:
+          permissions: ["view"]
+          
+  # Database
+  database:
+    # Primary database
+    primary:
+      url: "postgresql://user:pass@localhost/frextech"
+      pool_size: 20
+      max_overflow: 10
+      pool_recycle: 3600
+      echo: false
+      
+    # Redis cache
+    redis:
+      url: "redis://localhost:6379/0"
+      max_connections: 20
+      decode_responses: true
+      
+    # MongoDB for documents
+    mongodb:
+      enabled: false
+      url: "mongodb://localhost:27017/frextech"
+      
+  # Cache
+  cache:
+    enabled: true
+    type: "redis"  # redis, memory, disk
+    
+    # TTL configurations
+    ttl:
+      short: 300    # 5 minutes
+      medium: 3600  # 1 hour
+      long: 86400   # 24 hours
+      
+    # Cache keys
+    keys:
+      embeddings: "embeddings:{hash}"
+      generations: "generations:{id}"
+      user_limits: "user_limits:{user_id}"
+      
+  # Model loading
+  models:
+    # World model
+    world_model:
+      enabled: true
+      checkpoint: "./models/world_model/latest/model.safetensors"
+      config: "./configs/model/inference.yaml"
+      device: "cuda:0"
+      dtype: "bfloat16"
+      load_on_startup: true
+      max_loaded: 1
+      
+    # Text encoder
+    text_encoder:
+      enabled: true
+      model_name: "openai/clip-vit-large-patch14"
+      device: "cuda:0"
+      dtype: "float32"
+      
+    # Image encoder
+    image_encoder:
+      enabled: true
+      model_name: "vit-large-patch16-224"
+      device: "cuda:0"
+      dtype: "float32"
+      
+    # Safety checker
+    safety_checker:
+      enabled: true
+      model_name: "clip"
+      device: "cuda:1"
+      dtype: "float32"
+      
+  # Queue system
+  queue:
+    enabled: true
+    broker_url: "redis://localhost:6379/1"
+    result_backend: "redis://localhost:6379/2"
+    
+    # Queues
+    queues:
+      generation:
+        name: "generation"
+        workers: 2
+        concurrency: 2
+        
+      editing:
+        name: "editing"
+        workers: 2
+        concurrency: 2
+        
+      export:
+        name: "export"
+        workers: 1
+        concurrency: 1
+        
+    # Task timeouts
+    timeouts:
+      generation: 300  # 5 minutes
+      editing: 600     # 10 minutes
+      export: 900      # 15 minutes
+      
+  # Storage
+  storage:
+    # Local storage
+    local:
+      enabled: true
+      base_path: "./storage"
+      generations: "./storage/generations"
+      exports: "./storage/exports"
+      temp: "./storage/temp"
+      
+    # S3 storage
+    s3:
+      enabled: false
+      endpoint_url: "https://s3.amazonaws.com"
+      bucket: "frextech-storage"
+      region: "us-east-1"
+      access_key: "${AWS_ACCESS_KEY_ID}"
+      secret_key: "${AWS_SECRET_ACCESS_KEY}"
+      
+    # Azure Blob Storage
+    azure:
+      enabled: false
+      connection_string: "${AZURE_CONNECTION_STRING}"
+      container: "frextech"
+      
+  # Monitoring
+  monitoring:
+    # Metrics
+    metrics:
+      enabled: true
+      port: 9090
+      path: "/metrics"
+      
+    # Health checks
+    health:
+      enabled: true
+      path: "/health"
+      dependencies: ["database", "redis", "models"]
+      
+    # Logging
+    logging:
+      level: "INFO"
+      format: "json"
+      file: "./logs/api.log"
+      max_size: "100MB"
+      backup_count: 10
+      
+    # Tracing
+    tracing:
+      enabled: false
+      endpoint: "jaeger:6831"
+      sample_rate: 0.1
+      
+    # Profiling
+    profiling:
+      enabled: false
+      port: 6060
+      
+  # Security
+  security:
+    # Request validation
+    validation:
+      max_request_size: "10MB"
+      max_files: 10
+      max_file_size: "5MB"
+      allowed_extensions: [".jpg", ".jpeg", ".png", ".mp4", ".obj", ".ply"]
+      
+    # Headers
+    headers:
+      x_frame_options: "DENY"
+      x_content_type_options: "nosniff"
+      x_xss_protection: "1; mode=block"
+      strict_transport_security: "max-age=31536000; includeSubDomains"
+      
+    # Content Security Policy
+    csp:
+      enabled: true
+      policy: "default-src 'self'"
+      
+  # Email
+  email:
+    enabled: false
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    smtp_username: "${EMAIL_USERNAME}"
+    smtp_password: "${EMAIL_PASSWORD}"
+    from_email: "noreply@frextech.ai"
+    
+  # Notifications
+  notifications:
+    # Webhooks
+    webhooks:
+      enabled: false
+      endpoints: []
+      
+    # Slack
+    slack:
+      enabled: false
+      webhook_url: "${SLACK_WEBHOOK_URL}"
+      channel: "#api-alerts"
+      
+    # Discord
+    discord:
+      enabled: false
+      webhook_url: "${DISCORD_WEBHOOK_URL}"
+      
+  # API keys management
+  api_keys:
+    rotation:
+      enabled: true
+      days: 90
+      warning_days: 7
+      
+    generation:
+      prefix: "fk_"  # FrexTech Key prefix
+      length: 32
+      charset: "alphanumeric"
+      
+  # Billing
+  billing:
+    enabled: false
+    stripe:
+      secret_key: "${STRIPE_SECRET_KEY}"
+      webhook_secret: "${STRIPE_WEBHOOK_SECRET}"
+      
+    # Pricing tiers
+    tiers:
+      free:
+        requests_per_month: 100
+        max_batch_size: 1
+        max_concurrent: 1
+        
+      premium:
+        requests_per_month: 1000
+        max_batch_size: 4
+        max_concurrent: 2
+        
+      enterprise:
+        requests_per_month: 10000
+        max_batch_size: 16
+        max_concurrent: 4
+        
+  # Maintenance mode
+  maintenance:
+    enabled: false
+    message: "API is under maintenance. Please try again later."
+    allowed_ips: ["127.0.0.1"]
+    
+  # Feature flags
+  features:
+    # Generation features
+    generation:
+      enabled: true
+      batch_generation: true
+      async_generation: true
+      streaming_generation: false
+      
+    # Editing features
+    editing:
+      enabled: true
+      inpainting: true
+      outpainting: true
+      style_transfer: true
+      
+    # Export features
+    export:
+      enabled: true
+      formats: ["png", "jpg", "mp4", "glb", "ply"]
+      batch_export: true
+      
+    # Experimental features
+    experimental:
+      novel_view_synthesis: false
+      video_interpolation: false
+      scene_composition: false
+      
+  # WebSocket
+  websocket:
+    enabled: true
+    path: "/ws"
+    ping_interval: 30
+    ping_timeout: 10
+    max_connections: 100
+    max_message_size: "10MB"
+    
+  # Webhook verification
+  webhooks:
+    enabled: false
+    secret: "${WEBHOOK_SECRET}"
+    timeout: 5
+    retries: 3
+    
+  # File handling
+  files:
+    # Upload handling
+    upload:
+      temp_dir: "./temp/uploads"
+      max_size: "10MB"
+      allowed_types: ["image/*", "video/*", "application/octet-stream"]
+      
+    # Download handling
+    download:
+      chunk_size: 8192
+      streaming: true
+      
+    # Cleanup
+    cleanup:
+      enabled: true
+      interval: 3600  # 1 hour
+      max_age: 86400  # 24 hours
+      
+  # Session management
+  sessions:
+    enabled: true
+    secret_key: "${SESSION_SECRET}"
+    max_age: 3600  # 1 hour
+    same_site: "lax"
+    secure: true
+    http_only: true
+    
+  # Compression
+  compression:
+    enabled: true
+    level: 6
+    min_size: 500
+    algorithms: ["gzip", "deflate"]
+    
+  # Timeouts
+  timeouts:
+    request: 300  # 5 minutes
+    response: 300  # 5 minutes
+    keep_alive: 5
+    
+  # Load balancing
+  load_balancing:
+    enabled: false
+    strategy: "round_robin"  # round_robin, least_connections, ip_hash
+    health_check: "/health"
+    health_check_interval: 30
+    
+  # API versioning
+  versioning:
+    enabled: true
+    default_version: "v1"
+    supported_versions: ["v1"]
+    version_header: "X-API-Version"
+    version_param: "api_version"
+    
+  # Documentation
+  documentation:
+    enabled: true
+    openapi_version: "3.0.2"
+    contact:
+      name: "FrexTech AI Support"
+      email: "support@frextech.ai"
+      url: "https://frextech.ai"
+    license:
+      name: "Proprietary"
+      url: "https://frextech.ai/license"
+    servers:
+      - url: "https://api.frextech.ai"
+        description: "Production server"
+      - url: "http://localhost:8000"
+        description: "Development server"

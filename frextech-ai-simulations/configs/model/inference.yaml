@@ -1,0 +1,414 @@
+# Inference Configuration
+# Optimized for fast, high-quality generation during inference
+
+_base_: "base.yaml"  # Inherit from base configuration
+
+# Inference-specific overrides
+model:
+  # Use trained model variant
+  variant: "xl"  # Balance between quality and speed
+  
+  inference:
+    # Performance settings
+    max_batch_size: 1  # Typically batch size 1 for interactive use
+    use_cached_embeddings: true
+    cache_ttl: 3600  # Cache time-to-live in seconds
+    
+    # Generation quality
+    quality_preset: "balanced"  # Default preset
+    
+    # Sampler configuration
+    sampler: "ddim"
+    sampler_config:
+      ddim:
+        eta: 0.0
+        discretization: "uniform"
+        
+      dpm_solver:
+        order: 2
+        skip_type: "logSNR"
+        method: "multistep"
+        
+      plms:
+        skip_type: "logSNR"
+        
+    # Guidance
+    classifier_free_guidance:
+      enabled: true
+      guidance_scale: 7.5
+      unconditional_embeddings_cache: true
+      
+    # Latent space manipulation
+    latent_interpolation:
+      enabled: false
+      method: "slerp"  # options: lerp, slerp
+    
+    # Temperature sampling
+    temperature: 0.85
+    top_p: 0.95
+    top_k: 100
+    repetition_penalty: 1.1
+    length_penalty: 1.0
+    
+    # Diversity
+    num_beams: 1
+    num_beam_groups: 1
+    diversity_penalty: 0.0
+    
+    # Constraints
+    min_length: 1
+    max_length: 1024
+    no_repeat_ngram_size: 3
+    bad_words_ids: null
+    force_words_ids: null
+    
+  # Memory optimization for inference
+  memory:
+    gradient_checkpointing: false  # Disabled for inference
+    use_xformers: true
+    enable_tf32: true
+    enable_cudnn_benchmark: true
+    
+    # Model optimizations
+    torch_compile: true  # Use PyTorch 2.0 compilation
+    compile_mode: "reduce-overhead"
+    
+    # Quantization (optional)
+    quantization:
+      enabled: false
+      dtype: "int8"  # options: int8, float16, bfloat16
+      scheme: "dynamic"  # options: dynamic, static, qat
+    
+# Hardware acceleration
+hardware:
+  device: "cuda"  # options: cuda, cpu, mps
+  device_index: 0  # Use specific GPU
+  
+  # CUDA optimization
+  cudnn_benchmark: true
+  cudnn_deterministic: false
+  
+  # CPU optimization
+  cpu_threads: -1  # Use all available threads
+  enable_mkl_dnn: true
+  
+  # Multi-GPU inference
+  multi_gpu: false
+  gpu_ids: [0]  # List of GPU indices to use
+  
+# Performance profiles
+performance_profiles:
+  realtime:
+    steps: 20
+    guidance_scale: 3.0
+    resolution: 256
+    use_cache: true
+    description: "For real-time applications"
+    
+  interactive:
+    steps: 50
+    guidance_scale: 7.5
+    resolution: 512
+    use_cache: true
+    description: "For interactive editing"
+    
+  high_quality:
+    steps: 100
+    guidance_scale: 7.5
+    resolution: 1024
+    use_cache: true
+    description: "For final render quality"
+    
+  ultra_quality:
+    steps: 250
+    guidance_scale: 8.0
+    resolution: 2048
+    use_cache: true
+    description: "Maximum quality, slow"
+    
+# Model variants for different tasks
+model_variants:
+  general_purpose:
+    checkpoint: "./models/world_model/general_purpose.pt"
+    description: "General purpose world generation"
+    
+  architecture:
+    checkpoint: "./models/world_model/architecture_specialized.pt"
+    description: "Specialized for architectural scenes"
+    
+  nature:
+    checkpoint: "./models/world_model/nature_specialized.pt"
+    description: "Specialized for natural landscapes"
+    
+  interior:
+    checkpoint: "./models/world_model/interior_specialized.pt"
+    description: "Specialized for interior scenes"
+    
+# Post-processing
+post_processing:
+  enabled: true
+  
+  # Image processing
+  image:
+    denoise: true
+    denoise_strength: 0.1
+    
+    sharpening:
+      enabled: true
+      strength: 0.3
+      
+    color_correction:
+      enabled: true
+      contrast: 1.1
+      saturation: 1.05
+      brightness: 1.02
+      
+  # 3D processing
+  mesh:
+    simplification:
+      enabled: true
+      target_ratio: 0.5
+      aggressiveness: 7.0
+      
+    smoothing:
+      enabled: true
+      iterations: 2
+      lambda_filter: 0.5
+      
+    texturing:
+      enabled: true
+      texture_size: 2048
+      padding: 4
+      
+  # Gaussian splatting
+  gaussian:
+    pruning:
+      enabled: true
+      opacity_threshold: 0.01
+      
+    splitting:
+      enabled: true
+      gradient_threshold: 0.0002
+      
+    scaling:
+      enabled: true
+      scale_threshold: 0.01
+      
+# Output formats
+output:
+  # Image formats
+  image:
+    format: "png"  # options: png, jpg, webp
+    quality: 95
+    compression: 6  # PNG compression level
+    
+  # 3D formats
+  mesh:
+    format: "glb"  # options: glb, obj, ply, fbx
+    include_textures: true
+    embed_textures: true
+    
+  gaussian:
+    format: "ply"  # options: ply, npz
+    include_sh_coefficients: true
+    
+  point_cloud:
+    format: "ply"
+    
+  # Video formats
+  video:
+    format: "mp4"
+    codec: "h264"
+    fps: 30
+    quality: "high"
+    
+  # Metadata
+  metadata:
+    include_prompt: true
+    include_seed: true
+    include_model_info: true
+    include_generation_parameters: true
+    
+# Caching system
+caching:
+  enabled: true
+  backend: "disk"  # options: disk, redis, memory
+  
+  disk:
+    directory: "./models/cache/inference/"
+    max_size_gb: 100
+    cleanup_interval_hours: 24
+    
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+    password: null
+    ttl: 3600
+    
+  # What to cache
+  cache_embeddings: true
+  cache_intermediate_results: true
+  cache_final_results: true
+  
+# Rate limiting (for API usage)
+rate_limiting:
+  enabled: false
+  requests_per_minute: 60
+  requests_per_hour: 1000
+  max_concurrent_requests: 10
+  
+# Security
+security:
+  # Input validation
+  max_prompt_length: 1000
+  max_input_images: 10
+  max_input_size_mb: 100
+  
+  # Content filtering
+  content_filter:
+    enabled: true
+    safety_level: "medium"  # options: off, low, medium, high, strict
+    filter_categories: ["violence", "nudity", "hate", "harassment"]
+    
+  # Watermarking
+  watermark:
+    enabled: true
+    text: "Generated by FrexTech AI"
+    opacity: 0.3
+    position: "bottom-right"
+    
+# Error handling
+error_handling:
+  max_retries: 3
+  retry_delay: 1.0
+  timeout_seconds: 300
+  fallback_to_cpu: false
+  
+  # Error messages
+  user_friendly_errors: true
+  log_level: "error"  # options: debug, info, warning, error
+  
+# Monitoring
+monitoring:
+  enabled: true
+  
+  # Metrics to track
+  metrics:
+    - "inference_time"
+    - "memory_usage"
+    - "cache_hit_rate"
+    - "generation_quality"
+    - "user_feedback"
+    
+  # Logging
+  logging:
+    enabled: true
+    level: "info"
+    format: "json"
+    
+    # Log to file
+    file:
+      enabled: true
+      path: "./logs/inference/inference.log"
+      max_size_mb: 100
+      backup_count: 5
+      
+    # Log to console
+    console:
+      enabled: true
+      
+  # Performance monitoring
+  performance:
+    track_latency: true
+    track_throughput: true
+    track_memory: true
+    
+    # Alert thresholds
+    latency_warning_ms: 1000
+    latency_critical_ms: 5000
+    memory_warning_gb: 8
+    memory_critical_gb: 12
+    
+# API configuration (if used via API)
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+  timeout: 300
+  
+  # CORS
+  cors:
+    enabled: true
+    allow_origins: ["*"]
+    allow_methods: ["GET", "POST"]
+    allow_headers: ["*"]
+    
+  # Authentication
+  auth:
+    enabled: false
+    api_keys: []
+    
+# Batch processing
+batch_processing:
+  enabled: false
+  max_batch_size: 10
+  batch_timeout_seconds: 60
+  
+  # Scheduling
+  scheduler:
+    enabled: false
+    max_queued_jobs: 100
+    worker_count: 4
+    
+# Experimental features
+experimental:
+  use_triton: false
+  use_tensorrt: false
+  use_openvino: false
+  
+  # Novel samplers
+  karras_schedule: false
+  ancestral_sampling: false
+  
+  # ControlNet integration
+  controlnet:
+    enabled: false
+    checkpoint: null
+    
+# Environment variables
+env:
+  # Can be overridden by actual environment variables
+  MODEL_DIR: "${MODEL_DIR:-./models}"
+  CACHE_DIR: "${CACHE_DIR:-./cache}"
+  LOG_DIR: "${LOG_DIR:-./logs}"
+  TEMP_DIR: "${TEMP_DIR:-/tmp}"
+  
+# Paths
+paths:
+  model_checkpoints: "./models/world_model/"
+  cache_directory: "./cache/inference/"
+  output_directory: "./outputs/generations/"
+  log_directory: "./logs/inference/"
+  
+  # Temporary files
+  temp_directory: "/tmp/frextech_ai"
+  
+# Validation
+_validation_rules:
+  - field: "model.inference.max_batch_size"
+    type: "integer"
+    min: 1
+    max: 64
+    
+  - field: "model.inference.quality_preset"
+    type: "string"
+    allowed: ["realtime", "interactive", "high_quality", "ultra_quality"]
+    
+# Notes
+_notes: |
+  - For production deployment, enable rate limiting and authentication
+  - Adjust performance profiles based on hardware capabilities
+  - Enable caching for better performance with repeated prompts
+  - Use appropriate quality preset for your use case
+  - Monitor memory usage when processing large batches

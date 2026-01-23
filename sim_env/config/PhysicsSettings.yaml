@@ -1,0 +1,4 @@
+# Physics module settings (placeholder)
+gravity: 9.81
+time_step: 0.016
+integrator: "semi_implicit_euler"

@@ -1,0 +1,296 @@
+name: Continuous Deployment
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      version:
+        description: 'Image version/tag'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  K8S_NAMESPACE: frextech-ai
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+    
+    - name: Configure kubectl
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.K8S_CONFIG_STAGING }}" | base64 --decode > $HOME/.kube/config
+    
+    - name: Deploy to Kubernetes
+      run: |
+        # Update deployment with new image
+        export IMAGE_TAG=${VERSION:-${{ github.sha }}}
+        kubectl set image deployment/frextech-api \
+          frextech-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          -n ${{ env.K8S_NAMESPACE }}-staging
+        
+        # Wait for rollout
+        kubectl rollout status deployment/frextech-api \
+          -n ${{ env.K8S_NAMESPACE }}-staging \
+          --timeout=300s
+        
+        # Run health check
+        kubectl get pods -n ${{ env.K8S_NAMESPACE }}-staging
+        kubectl get svc -n ${{ env.K8S_NAMESPACE }}-staging
+    
+    - name: Run smoke tests
+      run: |
+        API_URL=$(kubectl get svc frextech-api -n ${{ env.K8S_NAMESPACE }}-staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        curl -f http://$API_URL:8000/health || exit 1
+        curl -f http://$API_URL:8000/api/v1/version || exit 1
+    
+    - name: Update deployment status
+      run: |
+        echo "Staging deployment completed successfully at $(date)" >> deployment.log
+        cat deployment.log
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') || 
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Get version from tag
+      id: get_version
+      run: |
+        if [[ "${{ github.ref }}" =~ refs/tags/v(.*) ]]; then
+          echo "VERSION=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event.inputs.version }}" ]]; then
+          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=${{ github.sha }}" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+    
+    - name: Configure kubectl
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.K8S_CONFIG_PRODUCTION }}" | base64 --decode > $HOME/.kube/config
+    
+    - name: Check if canary deployment exists
+      id: check_canary
+      run: |
+        if kubectl get deployment frextech-api-canary -n ${{ env.K8S_NAMESPACE }} --ignore-not-found; then
+          echo "canary_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "canary_exists=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Deploy canary
+      if: steps.check_canary.outputs.canary_exists == 'false'
+      run: |
+        # Create canary deployment (5% traffic)
+        export IMAGE_TAG=${{ steps.get_version.outputs.VERSION }}
+        envsubst < ./kubernetes/canary-deployment.yaml | kubectl apply -f - -n ${{ env.K8S_NAMESPACE }}
+        
+        # Wait for canary to be ready
+        kubectl rollout status deployment/frextech-api-canary \
+          -n ${{ env.K8S_NAMESPACE }} \
+          --timeout=300s
+    
+    - name: Monitor canary metrics
+      if: steps.check_canary.outputs.canary_exists == 'true'
+      run: |
+        # Monitor for 5 minutes
+        for i in {1..30}; do
+          echo "Checking canary metrics (iteration $i)..."
+          
+          # Get error rate
+          ERROR_RATE=$(kubectl exec -n monitoring deploy/prometheus -- \
+            curl -s "http://localhost:9090/api/v1/query?query=rate(http_requests_total{status=~\"5..\"}[5m])/rate(http_requests_total[5m])*100" | \
+            jq '.data.result[] | select(.metric.deployment=="frextech-api-canary") | .value[1]' | tr -d '"' || echo "0")
+          
+          # Get latency
+          LATENCY=$(kubectl exec -n monitoring deploy/prometheus -- \
+            curl -s "http://localhost:9090/api/v1/query?query=histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))" | \
+            jq '.data.result[] | select(.metric.deployment=="frextech-api-canary") | .value[1]' | tr -d '"' || echo "0")
+          
+          echo "Canary Error Rate: ${ERROR_RATE}%, Latency: ${LATENCY}s"
+          
+          # Check if metrics are within acceptable range
+          if (( $(echo "$ERROR_RATE > 2" | bc -l) )); then
+            echo "ERROR: Canary error rate too high: ${ERROR_RATE}%"
+            exit 1
+          fi
+          
+          if (( $(echo "$LATENCY > 2" | bc -l) )); then
+            echo "ERROR: Canary latency too high: ${LATENCY}s"
+            exit 1
+          fi
+          
+          sleep 10
+        done
+    
+    - name: Scale up canary
+      if: success()
+      run: |
+        # Gradually increase canary traffic
+        kubectl scale deployment/frextech-api-canary \
+          --replicas=2 \
+          -n ${{ env.K8S_NAMESPACE }}
+        
+        kubectl scale deployment/frextech-api \
+          --replicas=18 \
+          -n ${{ env.K8S_NAMESPACE }}
+        
+        sleep 60  # Wait for traffic shift
+    
+    - name: Full rollout
+      if: success()
+      run: |
+        # Update main deployment
+        export IMAGE_TAG=${{ steps.get_version.outputs.VERSION }}
+        kubectl set image deployment/frextech-api \
+          frextech-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get_version.outputs.VERSION }} \
+          -n ${{ env.K8S_NAMESPACE }}
+        
+        # Scale back to normal
+        kubectl scale deployment/frextech-api \
+          --replicas=20 \
+          -n ${{ env.K8S_NAMESPACE }}
+        
+        # Delete canary
+        kubectl delete deployment frextech-api-canary \
+          -n ${{ env.K8S_NAMESPACE }}
+        
+        # Wait for rollout completion
+        kubectl rollout status deployment/frextech-api \
+          -n ${{ env.K8S_NAMESPACE }} \
+          --timeout=600s
+    
+    - name: Run comprehensive tests
+      run: |
+        API_URL=$(kubectl get svc frextech-api -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        
+        # Health check
+        curl -f http://$API_URL:8000/health || exit 1
+        
+        # Load test
+        pip install locust
+        locust --headless \
+          --users 10 \
+          --spawn-rate 1 \
+          --run-time 1m \
+          --host http://$API_URL:8000 \
+          --csv=loadtest_results \
+          -f ./tests/performance/locustfile.py || true
+        
+        # Check logs for errors
+        kubectl logs deployment/frextech-api \
+          -n ${{ env.K8S_NAMESPACE }} \
+          --since=5m \
+          --tail=100 | grep -i error | head -10
+    
+    - name: Create GitHub release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/v')
+      with:
+        generate_release_notes: true
+        prerelease: false
+        files: |
+          loadtest_results*.csv
+          deployment.log
+    
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: |
+          Production deployment ${{ job.status }} for ${{ github.repository }}
+          Version: ${{ steps.get_version.outputs.VERSION }}
+          Deployed at: $(date)
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    if: failure() && needs.deploy-production.result == 'failure'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+    
+    - name: Configure kubectl
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.K8S_CONFIG_PRODUCTION }}" | base64 --decode > $HOME/.kube/config
+    
+    - name: Rollback deployment
+      run: |
+        echo "Initiating rollback due to deployment failure..."
+        
+        # Get previous successful version
+        PREVIOUS_VERSION=$(kubectl rollout history deployment/frextech-api \
+          -n ${{ env.K8S_NAMESPACE }} \
+          --output=json | \
+          jq -r '.metadata.annotations["deployment.kubernetes.io/revision"]' | \
+          tail -2 | head -1)
+        
+        if [[ -n "$PREVIOUS_VERSION" ]]; then
+          kubectl rollout undo deployment/frextech-api \
+            --to-revision=$PREVIOUS_VERSION \
+            -n ${{ env.K8S_NAMESPACE }}
+          
+          kubectl rollout status deployment/frextech-api \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --timeout=300s
+          
+          echo "Rollback to revision $PREVIOUS_VERSION completed"
+        else
+          echo "ERROR: Could not find previous version to rollback to"
+          exit 1
+        fi
+    
+    - name: Send rollback notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        text: |
+          :warning: Production deployment failed and was rolled back
+          Repository: ${{ github.repository }}
+          Commit: ${{ github.sha }}
+          Rollback initiated at: $(date)
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

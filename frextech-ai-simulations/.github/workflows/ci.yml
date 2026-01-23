@@ -1,0 +1,265 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly runs on Sunday
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black flake8 isort mypy bandit safety
+    
+    - name: Check code formatting with black
+      run: |
+        black --check --diff src/ tests/ scripts/
+    
+    - name: Lint with flake8
+      run: |
+        flake8 src/ tests/ scripts/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 src/ tests/ scripts/ --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+    
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only --diff src/ tests/ scripts/
+    
+    - name: Type checking with mypy
+      run: |
+        mypy --install-types --non-interactive src/
+    
+    - name: Security scan with bandit
+      run: |
+        bandit -r src/ -f json -o bandit-report.json || true
+    
+    - name: Dependency security check
+      run: |
+        safety check --full-report
+    
+    - name: Upload linting results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: linting-results-${{ matrix.python-version }}
+        path: |
+          bandit-report.json
+        retention-days: 7
+
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: [3.9, 3.10, 3.11]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libgl1-mesa-glx \
+          libglib2.0-0 \
+          libsm6 \
+          libxext6 \
+          libxrender-dev \
+          libgomp1
+    
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install pytest pytest-cov pytest-asyncio pytest-xdist
+        pip install -r requirements.txt
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/unit/ -v \
+          --cov=src \
+          --cov-report=xml \
+          --cov-report=html \
+          --junitxml=junit.xml \
+          --tb=short \
+          -n auto
+    
+    - name: Run integration tests
+      if: matrix.python-version == '3.10'
+      run: |
+        pytest tests/integration/ -v \
+          --cov=src \
+          --cov-append \
+          --junitxml=junit-integration.xml \
+          --tb=short
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          junit*.xml
+          coverage.xml
+          htmlcov/
+        retention-days: 7
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: matrix.python-version == '3.10'
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  docker-build:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-
+    
+    - name: Build and push API image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: ./docker/Dockerfile.api
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Build and push training image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: ./docker/Dockerfile.training
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-training:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  performance:
+    needs: [test]
+    runs-on: ubuntu-latest-gpu
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+        pip install -e ".[dev]"
+    
+    - name: Run performance benchmarks
+      run: |
+        python -m pytest tests/performance/benchmark_inference.py -v \
+          --benchmark-only \
+          --benchmark-json benchmark-results.json \
+          --benchmark-min-rounds=5
+    
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-results
+        path: benchmark-results.json
+        retention-days: 30
+
+  notify:
+    needs: [lint, test, docker-build, performance]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Determine notification status
+      id: check-status
+      run: |
+        if [[ "${{ needs.lint.result }}" == "success" && \
+              "${{ needs.test.result }}" == "success" && \
+              "${{ needs.docker-build.result }}" == "success" ]]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Send Slack notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ steps.check-status.outputs.status }}
+        text: CI/CD Pipeline completed for ${{ github.repository }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      if: failure() && github.ref == 'refs/heads/main'
+    
+    - name: Send Discord notification
+      uses: Ilshidur/action-discord@0.3.2
+      with:
+        args: 'CI/CD Pipeline {{ job.status }} for ${{ github.repository }} commit ${{ github.sha }}'
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      if: always() && github.ref == 'refs/heads/main'
