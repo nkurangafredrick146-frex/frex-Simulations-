@@ -89,3 +89,4 @@ Critical paths use OpenGL, CUDA, or Numba for performance.
 - **Custom Renderers**: Implement `Renderer` interface
 - **Custom Forces**: Add to `PhysicsEngine.forces`
 - **Custom Shaders**: Add to `Rendering_engine.shaders`
+

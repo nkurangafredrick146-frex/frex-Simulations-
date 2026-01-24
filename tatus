@@ -1,0 +1,243 @@
+[33mcommit 36d4713367e418d7447723e434818d7dd32aea7d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Nkuranga Fredrick <nkurangafredrick146@hotmail.com>
+Date:   Sat Jan 24 03:30:40 2026 +0000
+
+    edited docs
+
+[1mdiff --git a/frextech-ai-simulations/docs/API.md b/frextech-ai-simulations/docs/API.md[m
+[1mindex a300ffb..cbb82d7 100644[m
+[1m--- a/frextech-ai-simulations/docs/API.md[m
+[1m+++ b/frextech-ai-simulations/docs/API.md[m
+[36m@@ -1,20 +1,602 @@[m
+[31m-# FrexTech AI Simulations API Documentation[m
+[32m+[m[32mFrexTech AI Simulations - API Documentation[m
+ [m
+[31m-## Overview[m
+[32m+[m[32mOverview[m
+ [m
+[31m-FrexTech AI provides a comprehensive API for generating, editing, and managing 3D worlds using state-of-the-art AI models. This API enables developers to create immersive virtual environments, edit existing scenes, and export to various formats.[m
+[32m+[m[32mThe FrexTech AI Simulations API provides programmatic access to our world generation, editing, and rendering capabilities. This RESTful API allows developers to integrate AI-powered 3D world creation into their applications.[m
+ [m
+[31m-**Base URL**: `https://api.frextech.ai/v1`[m
+[32m+[m[32mBase URLs[m
+ [m
+[31m-**API Version**: `v1`[m
+[32m+[m[32m· Development: http://localhost:8000[m
+[32m+[m[32m· Staging: https://api-staging.frextech-sim.com[m
+[32m+[m[32m· Production: https://api.frextech-sim.com[m
+ [m
+[31m-**Content Type**: `application/json`[m
+[32m+[m[32mAuthentication[m
+ [m
+[31m-## Authentication[m
+[32m+[m[32mAPI Keys[m
+ [m
+[31m-### API Keys[m
+[32m+[m[32mAll endpoints require authentication using API keys passed in the request header:[m
+ [m
+[31m-All API requests require authentication via API key. Include your API key in the request headers:[m
+[32m+[m[32m```http[m
+[32m+[m[32mAuthorization: Bearer your_api_key_here[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mRate Limiting[m
+[32m+[m
+[32m+[m[32m· Free Tier: 100 requests/hour[m
+[32m+[m[32m· Pro Tier: 10,000 requests/hour[m
+[32m+[m[32m· Enterprise: Custom limits[m
+[32m+[m
+[32m+[m[32mRate limit headers are included in all responses:[m
+[32m+[m
+[32m+[m[32m```http[m
+[32m+[m[32mX-RateLimit-Limit: 100[m
+[32m+[m[32mX-RateLimit-Remaining: 95[m
+[32m+[m[32mX-RateLimit-Reset: 1625097600[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mVersioning[m
+[32m+[m
+[32m+[m[32mThe API uses URL versioning. Current version: v1[m
+[32m+[m
+[32m+[m[32m```http[m
+[32m+[m[32mhttps://api.frextech-sim.com/v1/generate[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mEndpoints[m
+[32m+[m
+[32m+[m[32mWorld Generation[m
+[32m+[m
+[32m+[m[32mGenerate from Text[m
+[32m+[m
+[32m+[m[32m```http[m
+[32m+[m[32mPOST /v1/generate/text[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mGenerates a 3D world from a text description.[m
+[32m+[m
+[32m+[m[32mRequest Body:[m
+[32m+[m
+[32m+[m[32m```json[m
+[32m+[m[32m{[m
+[32m+[m[32m  "prompt": "A serene mountain lake at sunset with pine trees",[m
+[32m+[m[32m  "quality": "standard", // "draft", "standard", "premium"[m
+[32m+[m[32m  "format": "gaussian", // "gaussian", "nerf", "mesh"[m
+[32m+[m[32m  "resolution": "2048x2048",[m
+[32m+[m[32m  "seed": 42,[m
+[32m+[m[32m  "metadata": {[m
+[32m+[m[32m    "style": "photorealistic",[m
+[32m+[m[32m    "season": "autumn"[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mResponse:[m
+[32m+[m
+[32m+[m[32m```json[m
+[32m+[m[32m{[m
+[32m+[m[32m  "job_id": "gen_1234567890abcdef",[m
+[32m+[m[32m  "status": "processing",[m
+[32m+[m[32m  "estimated_time": 45,[m
+[32m+[m[32m  "webhook_url": "https://your-domain.com/webhook",[m
+[32m+[m[32m  "poll_url": "/v1/jobs/gen_1234567890abcdef"[m
+[32m+[m[32m}[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mGenerate from Image[m
+[32m+[m
+[32m+[m[32m```http[m
+[32m+[m[32mPOST /v1/generate/image[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mGenerates a 3D world from a 2D image.[m
+[32m+[m
+[32m+[m[32mRequest Body (multipart/form-data):[m
+[32m+[m
+[32m+[m[32m· image: Image file (PNG, JPG, WebP)[m
+[32m+[m[32m· prompt (optional): Additional guidance[m
+[32m+[m[32m· remove_background: boolean[m
+[32m+[m[32m· extend_borders: boolean[m
+[32m+[m
+[32m+[m[32mResponse: Same as text generation[m
+[32m+[m
+[32m+[m[32mGenerate from Video[m
+[32m+[m
+[32m+[m[32m```http[m
+[32m+[m[32mPOST /v1/generate/video[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mGenerates a navigable 3D world from a video.[m
+[32m+[m
+[32m+[m[32mRequest Body (multipart/form-data):[m
+[32m+[m
+[32m+[m[32m· video: Video file (MP4, MOV, AVI)[m
+[32m+[m[32m· extract_keyframes: boolean[m
+[32m+[m[32m· temporal_consistency: "strict" | "medium" | "loose"[m
+[32m+[m
+[32m+[m[32mWorld Editing[m
+[32m+[m
+[32m+[m[32mSelect Region[m
+[32m+[m
+[32m+[m[32m```http[m
+[32m+[m[32mPOST /v1/edit/select[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mSelects a region in an existing world for editing.[m
+[32m+[m
+[32m+[m[32mRequest Body:[m
+[32m+[m
+[32m+[m[32m```json[m
+[32m+[m[32m{[m
+[32m+[m[32m  "world_id": "world_abcdef123456",[m
+[32m+[m[32m  "selection_type": "rectangle", // "rectangle", "polygon", "sampling"[m
+[32m+[m[32m  "coordinates": {[m
+[32m+[m[32m    "center": [0.5, 0.5, 0.5],[m
+[32m+[m[32m    "radius": 0.1[m
+[32m+[m[32m  },[m
+[32m+[m[32m  "prompt": "Replace trees with palm trees"[m
+[32m+[m[32m}[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mApply Edit[m
+ [m
+ ```http[m
+[31m-Authorization: Bearer YOUR_API_KEY[m
+\ No newline at end of file[m
+[32m+[m[32mPOST /v1/edit/apply[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mApplies edits to a selected region.[m
+[32m+[m
+[32m+[m[32mRequest Body:[m
+[32m+[m
+[32m+[m[32m```json[m
+[32m+[m[32m{[m
+[32m+[m[32m  "edit_id": "edit_123456",[m
+[32m+[m[32m  "operation": "replace", // "replace", "add", "remove", "modify"[m
+[32m+[m[32m  "parameters": {[m
+[32m+[m[32m    "blend_strength": 0.7,[m
+[32m+[m[32m    "preserve_geometry": true,[m
+[32m+[m[32m    "style_match": "aggressive"[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mExpand World[m
+[32m+[m
+[32m+[m[32m```http[m
+[32m+[m[32mPOST /v1/edit/expand[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mExpands the boundaries of an existing world.[m
+[32m+[m
+[32m+[m[32mRequest Body:[m
+[32m+[m
+[32m+[m[32m```json[m
+[32m+[m[32m{[m
+[32m+[m[32m  "world_id": "world_abcdef123456",[m
+[32m+[m[32m  "direction": "north", // "north", "south", "east", "west", "up", "down"[m
+[32m+[m[32m  "distance": 50, // meters[m
+[32m+[m[32m  "prompt": "Continue the forest with more variety"[m
+[32m+[m[32m}[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mExport & Rendering[m
+[32m+[m
+[32m+[m[32mExport World[m
+[32m+[m
+[32m+[m[32m```http[m
+[32m+[m[32mPOST /v1/export[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mExports a world in various formats.[m
+[32m+[m
+[32m+[m[32mRequest Body:[m
+[32m+[m
+[32m+[m[32m```json[m
+[32m+[m[32m{[m
+[32m+[m[32m  "world_id": "world_abcdef123456",[m
+[32m+[m[32m  "format": "gltf", // "gltf", "fbx", "obj", "usd", "blend"[m
+[32m+[m[32m  "include_textures": true,[m
+[32m+[m[32m  "lod": "high", // "low", "medium", "high"[m
+[32m+[m[32m  "compression": true[m
+[32m+[m[32m}[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mResponse:[m
+[32m+[m
+[32m+[m[32m```json[m
+[32m+[m[32m{[m
+[32m+[m[32m  "download_url": "https://storage.frextech-sim.com/export/world_abcdef123456.glb",[m
+[32m+[m[32m  "file_size": 15674329,[m
+[32m+[m[32m  "expires_at": "2024-01-01T00:00:00Z"[m
+[32m+[m[32m}[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mRender Preview[m
+[32m+[m
+[32m+[m[32m```http[m
+[32m+[m[32mPOST /v1/render/preview[m
+[32m+[m[32m```[m
+[32m+[m
+[32m+[m[32mRenders a preview image or video of the world.[m
+[32m+[m
+[
