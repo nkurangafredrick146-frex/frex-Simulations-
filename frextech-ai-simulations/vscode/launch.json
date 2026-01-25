@@ -1,0 +1,281 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    // Python debugging configurations
+    {
+      "name": "Python: API Server",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/api/server.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "ENVIRONMENT": "development"
+      },
+      "args": [
+        "--host", "0.0.0.0",
+        "--port", "8000",
+        "--reload"
+      ]
+    },
+    {
+      "name": "Python: World Model Training",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/training/train_world_model.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "CUDA_VISIBLE_DEVICES": "0"
+      },
+      "args": [
+        "--config", "${workspaceFolder}/configs/model/train.yaml",
+        "--experiment", "debug_training"
+      ]
+    },
+    {
+      "name": "Python: Inference Test",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "args": [
+        "tests/unit/test_world_model.py::test_inference",
+        "-v",
+        "--capture=no"
+      ]
+    },
+    {
+      "name": "Python: Jupyter Notebook",
+      "type": "debugpy",
+      "request": "attach",
+      "port": 5678,
+      "host": "localhost",
+      "justMyCode": false
+    },
+    {
+      "name": "Python: Interactive Editor",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/examples/scripts/generate_world.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "args": [
+        "--prompt", "A futuristic city at sunset",
+        "--output", "${workspaceFolder}/output/debug_world",
+        "--debug"
+      ]
+    },
+    {
+      "name": "Python: Debug Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      }
+    },
+    {
+      "name": "Python: Debug Test File",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "args": [
+        "${file}",
+        "-v",
+        "--capture=no"
+      ]
+    },
+    {
+      "name": "Python: Debug All Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "args": [
+        "tests/",
+        "-v"
+      ]
+    },
+    
+    // Docker debugging
+    {
+      "name": "Docker: Python API",
+      "type": "docker",
+      "request": "launch",
+      "preLaunchTask": "docker-run: debug",
+      "python": {
+        "pathMappings": [
+          {
+            "localRoot": "${workspaceFolder}",
+            "remoteRoot": "/app"
+          }
+        ],
+        "projectType": "fastapi"
+      }
+    },
+    
+    // Frontend debugging (if using JavaScript/TypeScript)
+    {
+      "name": "Frontend: Launch Chrome",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/src/frontend",
+      "sourceMaps": true,
+      "trace": true
+    },
+    
+    // Integrated terminal debugging
+    {
+      "name": "Terminal: Training Script",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/training/train_world_model.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      }
+    },
+    
+    // Multi-process debugging for distributed training
+    {
+      "name": "Python: Distributed Training",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/training/train_world_model.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "NCCL_DEBUG": "INFO",
+        "CUDA_VISIBLE_DEVICES": "0,1,2,3"
+      },
+      "args": [
+        "--config", "${workspaceFolder}/configs/model/train.yaml",
+        "--distributed",
+        "--nodes", "1",
+        "--gpus", "4"
+      ]
+    },
+    
+    // Debug with GPU monitoring
+    {
+      "name": "Python: GPU Debug Session",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/core/world_model/training/trainer.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "CUDA_VISIBLE_DEVICES": "0",
+        "TF_FORCE_GPU_ALLOW_GROWTH": "true",
+        "NVIDIA_TF32_OVERRIDE": "0"
+      },
+      "args": [
+        "--debug-gpu",
+        "--profile"
+      ]
+    },
+    
+    // Memory debugging configuration
+    {
+      "name": "Python: Memory Profiling",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/performance/memory_profile.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "PYTHONMALLOC": "debug"
+      }
+    },
+    
+    // Benchmark debugging
+    {
+      "name": "Python: Benchmark Inference",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/tests/performance/benchmark_inference.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "args": [
+        "--batch-sizes", "1,2,4,8",
+        "--iterations", "100"
+      ]
+    }
+  ],
+  
+  "compounds": [
+    {
+      "name": "API + Frontend",
+      "configurations": [
+        "Python: API Server",
+        "Frontend: Launch Chrome"
+      ],
+      "stopAll": true
+    },
+    {
+      "name": "Training + Monitoring",
+      "configurations": [
+        "Python: World Model Training",
+        "Python: GPU Debug Session"
+      ]
+    },
+    {
+      "name": "Full Stack Debug",
+      "configurations": [
+        "Python: API Server",
+        "Frontend: Launch Chrome",
+        "Docker: Python API"
+      ]
+    }
+  ],
+  
+  // Custom debug configurations for specific modules
+  "inputs": [
+    {
+      "id": "promptInput",
+      "type": "promptString",
+      "description": "Enter generation prompt",
+      "default": "A beautiful landscape with mountains and rivers"
+    },
+    {
+      "id": "configFile",
+      "type": "pickString",
+      "description": "Select configuration file",
+      "options": [
+        "configs/model/base.yaml",
+        "configs/model/train.yaml",
+        "configs/model/inference.yaml"
+      ],
+      "default": "configs/model/base.yaml"
+    }
+  ]
+}

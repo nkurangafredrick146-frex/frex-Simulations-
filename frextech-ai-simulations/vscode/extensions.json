@@ -1,0 +1,112 @@
+{
+  "recommendations": [
+    // Python development
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.black-formatter",
+    "ms-python.mypy-type-checker",
+    "ms-python.debugpy",
+    "ms-toolsai.jupyter",
+    "ms-toolsai.jupyter-keymap",
+    "ms-toolsai.jupyter-renderers",
+    
+    // AI/ML specific
+    "ms-toolsai.vscode-ai",
+    "ms-toolsai.vscode-ai-remote",
+    "GitHub.copilot",
+    "GitHub.copilot-chat",
+    
+    // Web development (for frontend)
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "ritwickdey.LiveServer",
+    
+    // Docker & containers
+    "ms-azuretools.vscode-docker",
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    
+    // Data science & visualization
+    "ms-toolsai.datawrangler",
+    "RandomFractalsInc.vscode-data-preview",
+    "mechatroner.rainbow-csv",
+    "GrapeCity.gc-excelviewer",
+    
+    // Testing
+    "littlefoxteam.vscode-python-test-adapter",
+    "hbenl.vscode-test-explorer",
+    
+    // Git & version control
+    "eamodio.gitlens",
+    "mhutchie.git-graph",
+    "donjayamanne.githistory",
+    
+    // Markdown & documentation
+    "yzhang.markdown-all-in-one",
+    "shd101wyy.markdown-preview-enhanced",
+    "davidanson.vscode-markdownlint",
+    
+    // YAML/JSON/TOML
+    "redhat.vscode-yaml",
+    "tamasfe.even-better-toml",
+    
+    // Shell scripting
+    "foxundermoon.shell-format",
+    "timonwong.shellcheck",
+    
+    // Productivity
+    "christian-kohler.path-intellisense",
+    "christian-kohler.npm-intellisense",
+    "ms-vscode-remote.remote-ssh",
+    "ms-vscode-remote.remote-containers",
+    "ms-vscode-remote.remote-wsl",
+    
+    // Code quality & review
+    "sonarsource.sonarlint-vscode",
+    "wix.vscode-import-cost",
+    "kisstkondoros.vscode-gutter-preview",
+    
+    // Themes & icons
+    "PKief.material-icon-theme",
+    "zhuangtongfa.material-theme",
+    "akamud.vscode-theme-onedark",
+    
+    // Database
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-pg",
+    
+    // API development
+    "humao.rest-client",
+    "rangav.vscode-thunder-client",
+    
+    // 3D & graphics (if applicable)
+    "slevesque.shader",
+    "cesium.gltf-vscode",
+    
+    // Notebooks
+    "ms-toolsai.vscode-notebook-renderers",
+    
+    // Utility
+    "formulahendry.code-runner",
+    "Gruntfuggly.todo-tree",
+    "wayou.vscode-todo-highlight",
+    "streetsidesoftware.code-spell-checker",
+    
+    // Remote development
+    "ms-vscode.remote-explorer",
+    
+    // Environment management
+    "mikestead.dotenv",
+    
+    // Project management
+    "alefragnani.project-manager"
+  ],
+  
+  "unwantedRecommendations": [
+    // Remove conflicting Python extensions
+    "ms-python.python-extension-pack",
+    // Remove outdated extensions
+    "donjayamanne.python-extension-pack",
+    // Remove conflicting formatters
+    "hookyqr.beautify"
+  ]
+}

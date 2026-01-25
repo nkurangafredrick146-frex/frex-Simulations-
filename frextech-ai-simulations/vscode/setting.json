@@ -1,0 +1,203 @@
+{
+  // Python configuration
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/src",
+    "${workspaceFolder}/tests"
+  ],
+  
+  // Formatting and linting
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true,
+    "source.fixAll": true
+  },
+  "python.formatting.provider": "black",
+  "python.formatting.blackArgs": [
+    "--line-length=100"
+  ],
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": false,
+  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Args": [
+    "--max-line-length=100",
+    "--ignore=E203,W503"
+  ],
+  "python.linting.mypyEnabled": true,
+  "python.linting.mypyArgs": [
+    "--ignore-missing-imports",
+    "--follow-imports=silent",
+    "--show-column-numbers",
+    "--strict"
+  ],
+  
+  // Jupyter notebook settings
+  "jupyter.notebookFileRoot": "${workspaceFolder}",
+  "jupyter.alwaysTrustNotebooks": true,
+  "jupyter.interactiveWindow.cellMarker.codeRegex": "^#\\s*%%|^#\\s*In\\[\\d*?\\]|^#\\s*In\\[ \\]",
+  
+  // File associations
+  "files.associations": {
+    "*.yaml": "yaml",
+    "*.yml": "yaml",
+    "*.sh": "shellscript",
+    "Dockerfile*": "dockerfile",
+    "**/templates/*.html": "html",
+    "**/templates/*.jinja": "jinja"
+  },
+  
+  // Exclude patterns
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.coverage": true,
+    "**/htmlcov": true,
+    "**/.hypothesis": true,
+    "**/.ipynb_checkpoints": true,
+    "**/*.pyc": true,
+    "**/*.pyo": true,
+    "**/*.pyd": true,
+    "**/.Python": true,
+    "**/venv": true,
+    "**/env": true,
+    "**/.env": true,
+    "**/.env.local": true,
+    "**/.env.*.local": true,
+    "**/node_modules": true,
+    "**/.git": true,
+    "**/.hg": true,
+    "**/.svn": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "**/logs": true,
+    "**/dist": true,
+    "**/build": true
+  },
+  
+  // Editor settings
+  "editor.rulers": [100],
+  "editor.wordWrap": "off",
+  "editor.stickyScroll.enabled": true,
+  "editor.minimap.enabled": true,
+  "editor.renderWhitespace": "boundary",
+  "editor.renderControlCharacters": true,
+  
+  // Terminal settings
+  "terminal.integrated.env.linux": {
+    "PYTHONPATH": "${workspaceFolder}/src:${env:PYTHONPATH}"
+  },
+  "terminal.integrated.env.osx": {
+    "PYTHONPATH": "${workspaceFolder}/src:${env:PYTHONPATH}"
+  },
+  "terminal.integrated.env.windows": {
+    "PYTHONPATH": "${workspaceFolder}/src;${env:PYTHONPATH}"
+  },
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.defaultProfile.osx": "zsh",
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  
+  // Docker settings
+  "docker.explorerRefreshInterval": 3000,
+  "docker.commands.attach": "docker container attach ${containerId}",
+  "docker.commands.composeUp": "docker-compose -f ${workspaceFolder}/docker/docker-compose.yml up -d",
+  
+  // Git settings
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "git.enableSmartCommit": true,
+  
+  // Debug settings
+  "debug.inlineValues": true,
+  "debug.showBreakpointsInOverviewRuler": true,
+  "debug.console.collapseIdenticalLines": false,
+  
+  // Python test settings
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": [
+    "-v",
+    "--cov=src",
+    "--cov-report=html",
+    "--cov-report=term-missing",
+    "--tb=short",
+    "-x"
+  ],
+  
+  // Notebook settings
+  "notebook.cellToolbarLocation": {
+    "default": "right",
+    "jupyter-notebook": "left"
+  },
+  
+  // YAML settings
+  "yaml.schemas": {
+    "file:///${workspaceFolder}/configs/schema/model_schema.json": [
+      "/configs/model/*.yaml",
+      "/configs/model/*.yml"
+    ],
+    "file:///${workspaceFolder}/configs/schema/api_schema.json": [
+      "/configs/api/*.yaml",
+      "/configs/api/*.yml"
+    ]
+  },
+  
+  // JSON settings
+  "json.schemas": [
+    {
+      "fileMatch": [
+        "/configs/*.json",
+        "/*.json"
+      ],
+      "url": "http://json-schema.org/draft-07/schema"
+    }
+  ],
+  
+  // Markdown settings
+  "markdown.preview.breaks": true,
+  "markdown.preview.doubleClickToSwitchToEditor": true,
+  
+  // Workspace specific
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/*.code-search": true,
+    "**/.git": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/coverage": true,
+    "**/logs": true
+  },
+  
+  // Remote development settings
+  "remote.extensionKind": {
+    "ms-python.python": ["ui", "workspace"]
+  },
+  
+  // Experimental features
+  "python.experiments.enabled": true,
+  "python.terminal.activateEnvironment": true,
+  
+  // Workbench settings
+  "workbench.editor.enablePreview": false,
+  "workbench.iconTheme": "material-icon-theme",
+  "workbench.colorTheme": "Default Dark Modern",
+  
+  // Breadcrumbs
+  "breadcrumbs.enabled": true,
+  "breadcrumbs.filePath": "on",
+  
+  // File nesting
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "*.py": "${capture}.pyi, ${capture}_test.py, ${capture}_tests.py, test_${capture}.py, ${capture}Test.py",
+    "*.ts": "${capture}.js, ${capture}.map, ${capture}.d.ts, ${capture}.test.ts, ${capture}.spec.ts",
+    "*.js": "${capture}.map, ${capture}.d.ts, ${capture}.test.js, ${capture}.spec.js",
+    "docker-compose.yml": "docker-compose.*.yml, .env, .env.*",
+    "package.json": "package-lock.json, yarn.lock, .npmrc, .yarnrc",
+    "README.md": "LICENSE, CONTRIBUTING.md, CHANGELOG.md, CODE_OF_CONDUCT.md"
+  }
+}
