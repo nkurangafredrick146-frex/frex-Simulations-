@@ -1,0 +1,161 @@
+{
+  "name": "frextech-ai-simulations-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend interface for FrexTech AI World Simulator",
+  "author": "FrexTech AI Team",
+  "license": "Proprietary",
+  "homepage": "https://frextech.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/frextech/frextech-ai-simulations.git"
+  },
+  "bugs": {
+    "url": "https://github.com/frextech/frextech-ai-simulations/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "start": "NODE_OPTIONS=--openssl-legacy-provider react-scripts start",
+    "build": "NODE_OPTIONS=--openssl-legacy-provider react-scripts build",
+    "test": "react-scripts test --coverage --watchAll=false",
+    "test:watch": "react-scripts test",
+    "eject": "react-scripts eject",
+    "lint": "eslint src/**/*.{js,jsx,ts,tsx} --max-warnings=0",
+    "lint:fix": "eslint src/**/*.{js,jsx,ts,tsx} --fix",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,scss,json}\"",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,scss,json}\"",
+    "type-check": "tsc --noEmit",
+    "analyze": "source-map-explorer 'build/static/js/*.js'",
+    "security": "npm audit --audit-level=high",
+    "ci:test": "npm run test -- --passWithNoTests",
+    "ci:lint": "npm run lint",
+    "ci:format": "npm run format:check",
+    "ci:build": "npm run build",
+    "preinstall": "npx only-allow npm",
+    "prepare": "husky install",
+    "pre-commit": "lint-staged",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
+    "docker:build": "docker build -f ../../docker/Dockerfile.frontend -t frextech/frontend:latest .",
+    "docker:run": "docker run -p 3000:3000 --env-file .env.production frextech/frontend:latest"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.14.16",
+    "@mui/material": "^5.14.18",
+    "@mui/x-data-grid": "^6.18.1",
+    "@mui/x-date-pickers": "^6.18.1",
+    "@react-three/drei": "^9.94.6",
+    "@react-three/fiber": "^8.14.6",
+    "@reduxjs/toolkit": "^1.9.7",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/user-event": "^14.5.1",
+    "axios": "^1.6.2",
+    "date-fns": "^2.30.0",
+    "formik": "^2.4.5",
+    "jotai": "^2.4.4",
+    "lodash": "^4.17.21",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-helmet-async": "^2.0.4",
+    "react-hook-form": "^7.48.2",
+    "react-hot-toast": "^2.4.1",
+    "react-markdown": "^9.0.1",
+    "react-router-dom": "^6.20.1",
+    "react-scripts": "^5.0.1",
+    "recharts": "^2.10.3",
+    "recoil": "^0.7.7",
+    "socket.io-client": "^4.7.2",
+    "three": "^0.160.0",
+    "uuid": "^9.0.1",
+    "web-vitals": "^3.5.0",
+    "yup": "^1.3.3",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@storybook/addon-essentials": "^7.5.3",
+    "@storybook/addon-interactions": "^7.5.3",
+    "@storybook/addon-links": "^7.5.3",
+    "@storybook/blocks": "^7.5.3",
+    "@storybook/react": "^7.5.3",
+    "@storybook/react-webpack5": "^7.5.3",
+    "@storybook/testing-library": "^0.2.2",
+    "@types/jest": "^29.5.8",
+    "@types/lodash": "^4.14.202",
+    "@types/node": "^20.10.5",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@types/three": "^0.160.0",
+    "@types/uuid": "^9.0.7",
+    "@typescript-eslint/eslint-plugin": "^6.16.0",
+    "@typescript-eslint/parser": "^6.16.0",
+    "eslint": "^8.56.0",
+    "eslint-config-airbnb": "^19.0.4",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-jsx-a11y": "^6.8.0",
+    "eslint-plugin-prettier": "^5.1.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-storybook": "^0.6.15",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1",
+    "prop-types": "^15.8.1",
+    "source-map-explorer": "^2.5.3",
+    "storybook": "^7.5.3",
+    "typescript": "^5.3.3"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all",
+      "not IE 11",
+      "not IE_Mob 11"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,scss,json,md}": [
+      "prettier --write"
+    ]
+  },
+  "proxy": "http://localhost:8000",
+  "jest": {
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx,ts,tsx}",
+      "!src/**/*.d.ts",
+      "!src/**/index.{js,jsx,ts,tsx}",
+      "!src/**/*.stories.{js,jsx,ts,tsx}",
+      "!src/setupTests.{js,jsx,ts,tsx}",
+      "!src/reportWebVitals.{js,jsx,ts,tsx}"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    }
+  },
+  "resolutions": {
+    "@types/react": "18.2.45",
+    "@types/react-dom": "18.2.18"
+  }
+}

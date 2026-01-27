@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FrexTech AI Simulations - Create and Explore Infinite Virtual Worlds">
+    <title>FrexTech AI World Simulator</title>
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="FrexTech AI World Simulator">
+    <meta property="og:description" content="Create and explore infinite virtual worlds with AI">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://frextech.ai">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease-out;
+        }
+        
+        .loader-container {
+            text-align: center;
+        }
+        
+        .loader {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 18px;
+            font-weight: 500;
+            color: #ffffff;
+            margin-top: 20px;
+            letter-spacing: 2px;
+        }
+        
+        .loading-dots {
+            display: inline-block;
+            animation: dots 1.5s infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        
+        .app-container {
+            display: none;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        /* Error Fallback */
+        .error-fallback {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 0, 0, 0.3);
+            z-index: 10000;
+        }
+        
+        .error-title {
+            color: #ff4757;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        
+        .error-message {
+            color: #ffffff;
+            margin-bottom: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .retry-button {
+            background: linear-gradient(135deg, #ff4757 0%, #ff3838 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .retry-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 71, 87, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loader-container">
+            <div class="loader"></div>
+            <div class="loading-text">
+                Loading World Simulator<span class="loading-dots"></span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main App Container -->
+    <div id="root" class="app-container"></div>
+    
+    <!-- Error Fallback -->
+    <div id="error-fallback" class="error-fallback">
+        <h2 class="error-title">Application Error</h2>
+        <p id="error-details" class="error-message">
+            An unexpected error occurred while loading the application.
+        </p>
+        <button class="retry-button" onclick="window.location.reload()">Reload Application</button>
+    </div>
+    
+    <!-- App Initialization Script -->
+    <script>
+        // Check for WebGL support
+        function checkWebGLSupport() {
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                return gl && gl instanceof WebGLRenderingContext;
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        // Check for required APIs
+        function checkRequiredAPIs() {
+            const requiredAPIs = [
+                'fetch',
+                'Promise',
+                'URL',
+                'Blob',
+                'FileReader'
+            ];
+            
+            return requiredAPIs.every(api => api in window);
+        }
+        
+        // Initialize application
+        async function initializeApp() {
+            const loadingScreen = document.getElementById('loading-screen');
+            const errorFallback = document.getElementById('error-fallback');
+            const errorDetails = document.getElementById('error-details');
+            
+            try {
+                // Check requirements
+                if (!checkWebGLSupport()) {
+                    throw new Error('WebGL is not supported in your browser. Please update your browser or enable WebGL.');
+                }
+                
+                if (!checkRequiredAPIs()) {
+                    throw new Error('Your browser is missing required APIs. Please update to a modern browser.');
+                }
+                
+                // Load environment configuration
+                const envResponse = await fetch('/api/config/environment');
+                if (!envResponse.ok) {
+                    throw new Error('Failed to load environment configuration');
+                }
+                
+                // Hide loading screen with delay
+                setTimeout(() => {
+                    loadingScreen.style.opacity = '0';
+                    setTimeout(() => {
+                        loadingScreen.style.display = 'none';
+                        document.querySelector('.app-container').style.display = 'block';
+                    }, 500);
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                
+                // Show error fallback
+                loadingScreen.style.display = 'none';
+                errorFallback.style.display = 'block';
+                errorDetails.textContent = error.message;
+                
+                // Log to analytics if available
+                if (window.analytics) {
+                    window.analytics.track('App Initialization Failed', {
+                        error: error.message,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            }
+        }
+        
+        // Start initialization when DOM is loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            initializeApp();
+        }
+        
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js').catch(error => {
+                    console.log('Service Worker registration failed:', error);
+                });
+            });
+        }
+        
+        // Handle offline/online status
+        window.addEventListener('online', () => {
+            console.log('Application is online');
+        });
+        
+        window.addEventListener('offline', () => {
+            console.warn('Application is offline');
+        });
+    </script>
+</body>
+</html>
